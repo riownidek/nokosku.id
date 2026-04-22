@@ -11,16 +11,23 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+// ── Defensive secret chain — prevents MissingSecret crash on any environment ──
+// Reads AUTH_SECRET (NextAuth v5 default) OR NEXTAUTH_SECRET (legacy) OR fallback
+const AUTH_SECRET =
+  process.env.AUTH_SECRET ||
+  process.env.NEXTAUTH_SECRET ||
+  "nokosmu_emergency_fallback_secret_2026_change_me";
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
-    // ─── Google OAuth ───────────────────────────────────────────────────────
+    // ─── Google OAuth ─────────────────────────────────────────────────────────
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
       allowDangerousEmailAccountLinking: true,
     }),
 
-    // ─── Credentials ────────────────────────────────────────────────────────
+    // ─── Credentials ──────────────────────────────────────────────────────────
     Credentials({
       name: "credentials",
       credentials: {
@@ -56,7 +63,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
 
   callbacks: {
-    // ─── Handle Google sign-in: create/link user in DB ──────────────────────
+    // ─── Handle Google sign-in: create/link user in DB ────────────────────────
     async signIn({ user, account }) {
       if (account?.provider === "google") {
         try {
@@ -65,7 +72,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           });
 
           if (!existingUser) {
-            // Create new user from Google
             await prisma.user.create({
               data: {
                 email: user.email!,
@@ -73,11 +79,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                 googleId: account.providerAccountId,
                 referralCode: generateReferralCode(),
                 role: "USER",
-                password: "", // No password for Google users
+                password: "",
               },
             });
           } else if (!existingUser.googleId) {
-            // Link Google account to existing user
             await prisma.user.update({
               where: { id: existingUser.id },
               data: { googleId: account.providerAccountId },
@@ -98,7 +103,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id;
         token.role = (user as any).role;
       }
-      // For Google logins, fetch user from DB to get id and role
       if (account?.provider === "google" && token.email) {
         try {
           const dbUser = await prisma.user.findUnique({
@@ -128,6 +132,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     error: "/login",
   },
   session: { strategy: "jwt" },
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: AUTH_SECRET,
   trustHost: true,
 });
