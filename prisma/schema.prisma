@@ -1,5 +1,5 @@
 // Prisma schema — NOKOSMU Platform
-// SQLite for serverless deployment (db bundled in build)
+// PostgreSQL (Supabase) — Production
 
 generator client {
   provider      = "prisma-client-js"
@@ -7,8 +7,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
