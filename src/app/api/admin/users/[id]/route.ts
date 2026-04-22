@@ -11,7 +11,7 @@ async function requireAdmin() {
 }
 
 const actionSchema = z.object({
-  action: z.enum(["block", "unblock", "add_balance", "deduct_balance"]),
+  action: z.enum(["block", "unblock", "add_balance", "deduct_balance", "topup", "deduct"]),
   amount: z.number().optional(),
   note: z.string().optional(),
 });
@@ -43,6 +43,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         return NextResponse.json({ success: true, message: "Akun berhasil dibuka blokirnya" });
 
       case "add_balance":
+      case "topup":
         if (!amount || amount <= 0)
           return NextResponse.json({ error: "Jumlah tidak valid" }, { status: 400 });
         await prisma.$transaction([
@@ -57,6 +58,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         return NextResponse.json({ success: true, message: `Saldo +Rp ${amount.toLocaleString("id-ID")} berhasil ditambahkan` });
 
       case "deduct_balance":
+      case "deduct":
         if (!amount || amount <= 0)
           return NextResponse.json({ error: "Jumlah tidak valid" }, { status: 400 });
         if (Number(user.balance) < amount)

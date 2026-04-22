@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/sidebar";
 import { Header } from "@/components/header";
+import { MobileBottomNav } from "@/components/mobile-bottom-nav";
 import { Toaster } from "sonner";
 import type { ReactNode } from "react";
 
@@ -16,11 +17,14 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       <div className="flex flex-1 flex-col min-w-0">
         <Header />
 
-        {/* Main content */}
-        <main className="flex-1 overflow-y-auto px-6 py-6 md:px-8 md:py-8">
+        {/* Main content — extra bottom padding on mobile for bottom nav */}
+        <main className="flex-1 overflow-y-auto px-4 py-4 pb-24 sm:pb-6 md:px-8 md:py-8">
           {children}
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav />
 
       <Toaster
         position="top-right"

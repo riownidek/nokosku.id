@@ -114,15 +114,19 @@ export function DashboardAnimations({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 + i * 0.06, type: "spring", stiffness: 400, damping: 28 }}
-            className="rounded-2xl border border-border bg-card p-4"
+            className="rounded-2xl bg-white p-4"
+            style={{
+              boxShadow: "0 2px 12px rgba(14,30,62,0.07), 0 1px 3px rgba(14,30,62,0.05)",
+              border: "1px solid rgba(14,30,62,0.06)",
+            }}
           >
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-medium text-muted-foreground">{s.label}</p>
-              <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${s.iconCls}`}>
+            <div className="flex items-center justify-between mb-2.5">
+              <p className="text-xs font-semibold text-muted-foreground leading-tight">{s.label}</p>
+              <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl ${s.iconCls}`}>
                 <s.Icon className="h-3.5 w-3.5" />
               </div>
             </div>
-            <p className="text-xl font-black text-foreground">{s.value}</p>
+            <p className="text-2xl font-black text-foreground leading-none">{s.value}</p>
           </motion.div>
         ))}
       </motion.div>

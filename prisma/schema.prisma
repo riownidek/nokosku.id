@@ -80,3 +80,14 @@ model Setting {
 
   @@map("settings")
 }
+
+model AppConfig {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String   @db.Text
+  label       String?
+  group       String   @default("general")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("app_configs")
+}
