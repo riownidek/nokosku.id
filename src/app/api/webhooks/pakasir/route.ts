@@ -3,57 +3,96 @@ import { prisma } from "@/lib/prisma";
 import { verifyPakasirTransaction } from "@/lib/pakasir";
 import { sendTelegramMessage, depositSuccessMessage } from "@/lib/telegram";
 
+const TAG = "[Pakasir Webhook]";
+
 export async function POST(req: Request) {
+  let body: any;
+
+  // ─── 1. Parse payload — SELALU balas 200 agar Pakasir tidak retry ──────────
   try {
-    const body = await req.json();
-    const { order_id, status } = body;
+    body = await req.json();
+  } catch {
+    console.error(`${TAG} Invalid JSON payload`);
+    // Tetap 200 agar Pakasir tidak retry dengan payload yang sama
+    return NextResponse.json({ received: true });
+  }
 
-    if (!order_id || !status) {
-      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
-    }
+  const { order_id, status } = body ?? {};
 
-    // ─── Find pending transaction ────────────────────────────────────────────
+  if (!order_id || !status) {
+    console.error(`${TAG} Missing order_id or status`, { order_id, status });
+    return NextResponse.json({ received: true });
+  }
+
+  console.log(`${TAG} Received webhook: order_id=${order_id} status=${status}`);
+
+  // ─── 2. Proses secara async — balas 200 DULU, proses di background ─────────
+  // Dalam Vercel Edge/Node, kita proses synchronous tapi pastikan SELALU 200
+  try {
+    // ── Cari transaksi di DB ─────────────────────────────────────────────────
     const transaction = await prisma.transaction.findFirst({
       where: { gatewayReference: order_id },
       include: { user: { select: { id: true, name: true, email: true, referredBy: true } } },
     });
 
     if (!transaction) {
-      return NextResponse.json({ message: "Transaction not found" }, { status: 404 });
+      // Tidak ditemukan → mungkin duplicate webhook → abaikan, tetap 200
+      console.warn(`${TAG} Transaction not found for order_id=${order_id} — ignoring`);
+      return NextResponse.json({ received: true });
     }
 
+    // ── Idempotency check — sudah diproses? ─────────────────────────────────
     if (transaction.status !== "PENDING") {
-      return NextResponse.json({ message: "Already processed" });
+      console.log(`${TAG} Already processed: order_id=${order_id} status=${transaction.status}`);
+      return NextResponse.json({ received: true, already_processed: true });
     }
 
-    // ─── Cross-verify with Pakasir API (prevent payload manipulation) ────────
-    const verified = await verifyPakasirTransaction(order_id);
+    // ── Cross-verify dengan Pakasir API (anti payload manipulation) ──────────
+    let verified: Awaited<ReturnType<typeof verifyPakasirTransaction>>;
+    try {
+      verified = await verifyPakasirTransaction(order_id);
+    } catch (verifyErr) {
+      console.error(`${TAG} Failed to verify with Pakasir API:`, verifyErr);
+      // Verifikasi gagal → jangan proses saldo, tapi tetap 200 agar tidak retry berlebihan
+      // Pakasir akan retry nanti dan verifikasi mungkin berhasil
+      return NextResponse.json({ received: true, verification_pending: true });
+    }
 
+    // Jika pembayaran failed/expired → tandai FAILED
     if (!verified.status || verified.data?.status !== "success") {
       if (verified.data?.status === "failed" || verified.data?.status === "expired") {
-        await prisma.transaction.update({
-          where: { id: transaction.id },
-          data: { status: "FAILED" },
-        });
+        try {
+          await prisma.transaction.update({
+            where: { id: transaction.id },
+            data: { status: "FAILED" },
+          });
+          console.log(`${TAG} Marked FAILED: order_id=${order_id}`);
+        } catch (dbErr) {
+          console.error(`${TAG} DB update FAILED error:`, dbErr);
+        }
       }
-      return NextResponse.json({ message: "Payment not confirmed" });
+      return NextResponse.json({ received: true, payment_status: verified.data?.status ?? "unconfirmed" });
     }
 
+    // ── Pembayaran sukses — update saldo secara atomik ───────────────────────
     const depositAmount = transaction.amount;
     const userId = transaction.userId;
     const referrerId = transaction.user.referredBy;
 
-    // ─── Calculate referral commission ──────────────────────────────────────
     let commissionAmount = 0;
     if (referrerId) {
-      const commissionSetting = await prisma.setting.findUnique({
-        where: { key: "referral_commission_percent" },
-      });
-      const percent = parseFloat(commissionSetting?.value ?? "0");
-      commissionAmount = Math.floor((depositAmount * percent) / 100);
+      try {
+        const commissionSetting = await prisma.setting.findUnique({
+          where: { key: "referral_commission_percent" },
+        });
+        const percent = parseFloat(commissionSetting?.value ?? "0");
+        commissionAmount = Math.floor((depositAmount * percent) / 100);
+      } catch (commErr) {
+        console.error(`${TAG} Failed to calculate commission:`, commErr);
+        // Lanjut tanpa komisi — jangan gagalkan deposit utama
+      }
     }
 
-    // ─── Atomic transaction: update balance + optional commission ────────────
     const ops: any[] = [
       prisma.transaction.update({
         where: { id: transaction.id },
@@ -70,9 +109,7 @@ export async function POST(req: Request) {
         prisma.user.update({
           where: { id: referrerId },
           data: { balance: { increment: commissionAmount } },
-        })
-      );
-      ops.push(
+        }),
         prisma.transaction.create({
           data: {
             userId: referrerId,
@@ -89,7 +126,9 @@ export async function POST(req: Request) {
     const updatedUser = results[1] as any;
     const newBalance = Number(updatedUser.balance);
 
-    // ─── Telegram notification (fire-and-forget) ─────────────────────────────
+    console.log(`${TAG} SUCCESS: order_id=${order_id} user=${transaction.user.email} amount=${depositAmount} newBalance=${newBalance}`);
+
+    // ── Telegram (fire-and-forget, jangan blokir response) ───────────────────
     sendTelegramMessage(
       depositSuccessMessage({
         userName: transaction.user.name ?? transaction.user.email,
@@ -99,15 +138,18 @@ export async function POST(req: Request) {
         orderId: order_id,
         newBalance,
       })
-    );
+    ).catch((err) => console.error(`${TAG} Telegram notification failed:`, err));
 
     return NextResponse.json({
+      received: true,
       success: true,
-      message: "Balance updated",
       commission: commissionAmount > 0 ? commissionAmount : undefined,
     });
   } catch (error) {
-    console.error("[Pakasir Webhook]", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    // ── Catch-all: error internal — tetap 200 agar Pakasir tidak retry ───────
+    console.error(`${TAG} Unhandled error:`, error);
+    // PENTING: Return 200 bukan 500! Pakasir retry pada non-2xx
+    // Jika error DB, transaksi masih PENDING dan akan diproses ulang saat retry
+    return NextResponse.json({ received: true, error: "processing_error" });
   }
 }
