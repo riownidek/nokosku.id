@@ -1,0 +1,339 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-geist-sans, var(--font-inter, ui-sans-serif, system-ui, sans-serif));
+  --font-mono: var(--font-geist-mono, ui-monospace, monospace);
+
+  /* NOKOSKU — Soft UI Modern Design System */
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+@layer base {
+  :root {
+    /* ── Soft UI Light Mode ─────────────────────────────────────────────── */
+    /* Background: warm off-white (not pure) — ref. Vercel/Linear light */
+    --background: 220 20% 97%;        /* #F4F6FA — subtle cool tint */
+    --foreground: 222 47% 11%;        /* #0F1729 — rich dark navy, not harsh black */
+
+    /* Card: pure white with soft lift */
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Primary: indigo with a softer saturation (ref. Stripe/Linear) */
+    --primary: 243 75% 59%;           /* #4F46E5 — Indigo 600 */
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary: very light lavender-tinted surface */
+    --secondary: 230 20% 95%;
+    --secondary-foreground: 230 30% 25%;
+
+    /* Muted: barely-there cool gray */
+    --muted: 220 15% 94%;
+    --muted-foreground: 220 10% 46%;
+
+    /* Accent: ultra-soft indigo tint for hover states */
+    --accent: 243 80% 96%;
+    --accent-foreground: 243 75% 45%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Border: whisper thin, almost invisible */
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 243 75% 59%;
+    --radius: 0.75rem;                /* Softer baseline radius */
+  }
+
+  .dark {
+    --background: 222 47% 6%;        /* Deep navy-dark — not pure black */
+    --foreground: 210 20% 96%;
+
+    --card: 222 40% 9%;
+    --card-foreground: 210 20% 96%;
+
+    --popover: 222 40% 9%;
+    --popover-foreground: 210 20% 96%;
+
+    --primary: 243 75% 65%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 222 30% 14%;
+    --secondary-foreground: 210 20% 80%;
+
+    --muted: 222 30% 13%;
+    --muted-foreground: 215 15% 55%;
+
+    --accent: 243 40% 20%;
+    --accent-foreground: 243 75% 80%;
+
+    --destructive: 0 75% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 222 25% 16%;
+    --input: 222 25% 16%;
+    --ring: 243 75% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Heading feels approachable — not excessive weight */
+  h1, h2, h3, h4, h5, h6 {
+    @apply tracking-tight;
+    letter-spacing: -0.025em;
+  }
+}
+
+/* ─── Soft UI Utility Classes ─────────────────────────────────────────────── */
+@layer utilities {
+  .grid-container {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  .section-gap {
+    @apply py-20 md:py-28 lg:py-36;
+  }
+
+  /* ── Soft UI Cards ── */
+  /* Stripe-style soft card: white + multi-layer shadow */
+  .soft-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 1.25rem;
+    box-shadow:
+      0 1px 2px rgba(14, 30, 62, 0.04),
+      0 4px 12px rgba(14, 30, 62, 0.05),
+      0 0 0 1px rgba(14, 30, 62, 0.03);
+  }
+
+  .soft-card-hover {
+    transition: box-shadow 0.25s ease, transform 0.25s ease;
+  }
+  .soft-card-hover:hover {
+    box-shadow:
+      0 4px 8px rgba(14, 30, 62, 0.06),
+      0 12px 32px rgba(14, 30, 62, 0.10),
+      0 0 0 1px rgba(14, 30, 62, 0.04);
+    transform: translateY(-3px);
+  }
+
+  /* ── Glassmorphism ── */
+  /* Frosted glass — Apple-style panel */
+  .glass {
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 8px 32px rgba(79, 70, 229, 0.08);
+  }
+
+  /* Dark glass — for dark hero overlays */
+  .glass-dark {
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* Inset light glass — Soft UI "sunken" effect */
+  .glass-inset {
+    background: rgba(220, 230, 255, 0.35);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: inset 0 2px 4px rgba(79, 70, 229, 0.06);
+  }
+
+  /* ── Glow surfaces ── */
+  .glow-primary {
+    box-shadow:
+      0 0 0 1px rgba(79, 70, 229, 0.15),
+      0 4px 24px rgba(79, 70, 229, 0.18),
+      0 1px 2px rgba(79, 70, 229, 0.08);
+  }
+
+  .glow-emerald {
+    box-shadow:
+      0 0 0 1px rgba(16, 185, 129, 0.15),
+      0 4px 20px rgba(16, 185, 129, 0.15);
+  }
+
+  /* ── Soft Inset Inputs ── */
+  .input-soft {
+    background: hsl(var(--muted));
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.875rem;
+    box-shadow:
+      inset 0 2px 4px rgba(14, 30, 62, 0.04),
+      0 1px 0 rgba(255, 255, 255, 0.8);
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .input-soft:focus {
+    border-color: hsl(var(--primary));
+    box-shadow:
+      inset 0 2px 4px rgba(14, 30, 62, 0.04),
+      0 0 0 3px rgba(79, 70, 229, 0.12);
+    outline: none;
+  }
+
+  /* ── Gradient backgrounds ── */
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(262 83% 58%) 100%);
+  }
+
+  .gradient-surface {
+    background: linear-gradient(180deg, hsl(var(--background)) 0%, hsl(220 20% 94%) 100%);
+  }
+
+  /* Hero ambient gradient */
+  .gradient-hero {
+    background:
+      radial-gradient(ellipse 80% 60% at 50% -10%, rgba(79,70,229,0.14) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 30% at 80% 80%, rgba(124,58,237,0.08) 0%, transparent 60%),
+      hsl(var(--background));
+  }
+
+  /* Subtle noise texture for depth */
+  .noise-texture {
+    position: relative;
+  }
+  .noise-texture::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    opacity: 0.5;
+  }
+
+  /* ── Typography ── */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .stat-number {
+    @apply text-4xl font-black tabular-nums tracking-tighter;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Animations ── */
+  .animate-fade-up {
+    animation: fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Slow floating for decorative elements */
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50%       { transform: translateY(-10px); }
+  }
+
+  /* Gradient text animation */
+  .animate-gradient {
+    background-size: 200% 100%;
+    animation: gradient-shift 3s linear infinite;
+  }
+
+  @keyframes gradient-shift {
+    0%   { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+  }
+
+  /* Swiss grid accent */
+  .grid-accent {
+    background-image:
+      linear-gradient(rgba(79,70,229,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,70,229,0.04) 1px, transparent 1px);
+    background-size: 64px 64px;
+  }
+
+  /* Dot grid — modern SaaS style */
+  .dot-grid {
+    background-image: radial-gradient(circle, rgba(79,70,229,0.12) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+
+  /* ── Sidebar soft style ── */
+  .sidebar-link {
+    @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all duration-150;
+  }
+
+  .sidebar-link:hover {
+    background: hsl(var(--muted));
+    color: hsl(var(--foreground));
+  }
+
+  .sidebar-link.active {
+    background: linear-gradient(135deg, rgba(79,70,229,0.12), rgba(124,58,237,0.06));
+    color: hsl(var(--primary));
+    border: 1px solid rgba(79,70,229,0.12);
+    box-shadow: 0 1px 4px rgba(79,70,229,0.08);
+  }
+
+  /* ── Soft Badge ── */
+  .badge-soft {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    padding: 0.2rem 0.65rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  /* ── Blur vignette for hero ── */
+  .hero-vignette {
+    background: radial-gradient(ellipse at center, transparent 40%, hsl(var(--background)) 100%);
+  }
+}
