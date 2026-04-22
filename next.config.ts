@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  outputFileTracingIncludes: {
+    "/api/**/*": ["./prisma/dev.db"],
+    "/dashboard/**/*": ["./prisma/dev.db"],
+    "/login": ["./prisma/dev.db"],
+    "/register": ["./prisma/dev.db"],
+    "/admin/**/*": ["./prisma/dev.db"],
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "www.rumahotp.io" },

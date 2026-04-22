@@ -1,14 +1,14 @@
 // Prisma schema — NOKOSMU Platform
-// PostgreSQL (Supabase) for production, supports PgBouncer connection pooling
+// SQLite for serverless deployment (db bundled in build)
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 model User {
