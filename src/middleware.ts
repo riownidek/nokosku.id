@@ -11,10 +11,11 @@ export default auth((req: NextRequest & { auth: any }) => {
   // API: semua /api/auth/*, /api/register, /api/webhooks/*, /api/appconfig/public
   // Pages: /, /login, /register, /terms
   const publicPrefixes = [
-    "/api/auth",           // NextAuth internals (callback, session, csrf, etc.)
-    "/api/register",       // Registrasi akun baru
-    "/api/webhooks",       // Webhook Pakasir (tidak ada session)
-    "/api/appconfig/public", // Public config untuk banner
+    "/api/auth",             // NextAuth internals
+    "/api/register",         // Registrasi akun baru
+    "/api/webhooks",         // Webhook Pakasir
+    "/api/appconfig/public", // Banner & config publik
+    "/api/payment-methods",  // Metode deposit (diperlukan di Step 2 wizard)
   ];
   const publicPages = ["/", "/login", "/register", "/terms"];
 

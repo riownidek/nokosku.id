@@ -29,6 +29,7 @@ model User {
 
   transactions   Transaction[]
   orders         Order[]
+  bandingHistory BandingHistory[]
 
   @@map("users")
 }
@@ -82,12 +83,67 @@ model Setting {
 }
 
 model AppConfig {
-  id          String   @id @default(uuid())
-  key         String   @unique
-  value       String   @db.Text
-  label       String?
-  group       String   @default("general")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String   @db.Text
+  label     String?
+  group     String   @default("general")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("app_configs")
+}
+
+// ─── PaymentMethod: metode deposit dinamis dikelola via Admin Panel ───────────
+model PaymentMethod {
+  id               String   @id @default(uuid())
+  name             String
+  code             String   @unique
+  category         String   @default("indonesia") // "indonesia" | "crypto"
+  adminFeePercent  Float    @default(0.7) @map("admin_fee_percent")
+  instruction      String?  @db.Text
+  iconUrl          String?  @map("icon_url")
+  estimasiMenit    Int      @default(5) @map("estimasi_menit")
+  isActive         Boolean  @default(true) @map("is_active")
+  sortOrder        Int      @default(0) @map("sort_order")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("payment_methods")
+}
+
+// ─── SmtpAccount: rotasi pengirim email untuk fitur Banding ──────────────────
+model SmtpAccount {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  appPassword  String   @map("app_password")
+  host         String   @default("smtp.gmail.com")
+  port         Int      @default(587)
+  isActive     Boolean  @default(true) @map("is_active")
+  usageCount   Int      @default(0) @map("usage_count")
+  dailyLimit   Int      @default(100) @map("daily_limit")
+  lastUsedAt   DateTime? @map("last_used_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  bandingHistory BandingHistory[]
+
+  @@map("smtp_accounts")
+}
+
+// ─── BandingHistory: riwayat penggunaan fitur Banding WhatsApp ───────────────
+model BandingHistory {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  targetNumber String   @map("target_number")
+  smtpId       String?  @map("smtp_id")
+  smtpEmail    String?  @map("smtp_email")
+  status       String   @default("PENDING") // PENDING | SUCCESS | FAILED
+  errorMessage String?  @map("error_message") @db.Text
+  cost         Float    @default(500)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  smtp   SmtpAccount? @relation(fields: [smtpId], references: [id], onDelete: SetNull)
+
+  @@map("banding_history")
 }

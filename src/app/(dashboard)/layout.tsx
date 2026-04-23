@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/sidebar";
 import { Header } from "@/components/header";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
+import { AutoLogout } from "@/components/auto-logout";
 import { Toaster } from "sonner";
 import type { ReactNode } from "react";
 
@@ -22,6 +23,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           {children}
         </main>
       </div>
+
+      {/* Auto-logout: signOut setelah 10 menit tidak aktif */}
+      <AutoLogout />
 
       {/* Mobile Bottom Navigation */}
       <MobileBottomNav />

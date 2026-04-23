@@ -1,208 +1,431 @@
 "use client";
 
-import { useState } from "react";
-import useSWR from "swr";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatRupiah } from "@/lib/utils";
-import { Check, Copy, CreditCard, Loader2, QrCode, Wallet } from "lucide-react";
+import {
+  ChevronLeft, ChevronRight, CheckCircle2, Wallet,
+  Loader2, QrCode, CreditCard, RefreshCw, Download,
+  Building2, Info, Clock,
+} from "lucide-react";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { staggerContainer, staggerItem } from "@/components/motion";
+import useSWR from "swr";
 
-const fetcher = (url: string) => fetch(url).then(r => r.json());
-const QUICK_AMOUNTS = [20000, 50000, 100000, 250000, 500000, 1000000];
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const QUICK = [20000, 50000, 100000, 250000, 500000, 1000000];
 
+// ─── Step Indicator ──────────────────────────────────────────────────────────
+function StepIndicator({ step }: { step: number }) {
+  const steps = ["Jumlah", "Metode", "Konfirmasi"];
+  return (
+    <div className="flex items-center justify-center gap-0 mb-6">
+      {steps.map((label, i) => {
+        const idx = i + 1;
+        const done = step > idx;
+        const active = step === idx;
+        return (
+          <div key={label} className="flex items-center">
+            <div className="flex flex-col items-center">
+              <div className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-black transition-all
+                ${done ? "bg-primary text-white" : active ? "bg-primary text-white ring-4 ring-primary/20" : "bg-muted text-muted-foreground"}`}>
+                {done ? <CheckCircle2 className="h-4 w-4" /> : idx}
+              </div>
+              <span className={`mt-1 text-[10px] font-semibold ${active ? "text-primary" : "text-muted-foreground"}`}>
+                {label}
+              </span>
+            </div>
+            {i < 2 && (
+              <div className={`h-0.5 w-10 mx-1 mb-4 transition-all ${step > idx ? "bg-primary" : "bg-muted"}`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── STEP 1: Pilih Nominal ────────────────────────────────────────────────────
+function Step1Amount({ amount, setAmount, onNext }: {
+  amount: number; setAmount: (v: number) => void; onNext: () => void;
+}) {
+  const [raw, setRaw] = useState(amount > 0 ? String(amount) : "");
+
+  const handleInput = (val: string) => {
+    const num = parseInt(val.replace(/\D/g, "")) || 0;
+    setRaw(val.replace(/\D/g, ""));
+    setAmount(num);
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
+      className="space-y-5">
+      <div>
+        <h2 className="text-lg font-black text-foreground">Pilih Nominal Deposit</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">Minimal Rp 10.000</p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        {QUICK.map((val) => (
+          <button key={val} onClick={() => { setAmount(val); setRaw(String(val)); }}
+            className={`rounded-xl border py-2.5 text-xs font-bold transition-all
+              ${amount === val ? "border-primary bg-primary text-white shadow-md" : "border-border bg-card hover:border-primary/40"}`}>
+            {formatRupiah(val)}
+          </button>
+        ))}
+      </div>
+
+      <div>
+        <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Atau masukkan nominal lain</label>
+        <div className="relative">
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">Rp</span>
+          <input type="text" placeholder="10000" value={raw}
+            onChange={(e) => handleInput(e.target.value)}
+            className="w-full rounded-xl border border-input bg-card pl-10 pr-4 py-3 text-lg font-black focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all" />
+        </div>
+      </div>
+
+      <button onClick={onNext} disabled={amount < 10000}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors">
+        Lanjutkan <ChevronRight className="h-4 w-4" />
+      </button>
+    </motion.div>
+  );
+}
+
+// ─── STEP 2: Pilih Metode ─────────────────────────────────────────────────────
+function Step2Method({ amount, selectedCode, onSelect, onNext, onBack }: {
+  amount: number; selectedCode: string;
+  onSelect: (m: any) => void; onNext: () => void; onBack: () => void;
+}) {
+  const { data, isLoading } = useSWR("/api/payment-methods", fetcher);
+  const methods: any[] = data?.methods ?? [];
+
+  const indonesia = methods.filter((m) => m.category === "indonesia");
+  const crypto = methods.filter((m) => m.category === "crypto");
+
+  return (
+    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
+      className="space-y-5">
+      <div>
+        <h2 className="text-lg font-black text-foreground">Pilih Metode Pembayaran</h2>
+        <div className="flex items-center justify-between mt-1">
+          <p className="text-xs text-muted-foreground">Nominal: <span className="font-bold text-foreground">{formatRupiah(amount)}</span></p>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="py-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+      ) : (
+        <div className="space-y-4">
+          {/* Pembayaran Indonesia */}
+          {indonesia.length > 0 && (
+            <div>
+              <p className="text-xs font-bold text-muted-foreground mb-2 uppercase tracking-wider">Pembayaran Indonesia</p>
+              <div className="space-y-2">
+                {indonesia.map((m) => (
+                  <button key={m.code} onClick={() => onSelect(m)}
+                    className={`w-full flex items-center gap-3 rounded-xl border p-3.5 text-left transition-all
+                      ${selectedCode === m.code ? "border-primary bg-primary/5 ring-2 ring-primary/20" : "border-border bg-card hover:border-primary/30"}`}>
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                      <QrCode className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-foreground">{m.name}</p>
+                      <p className="text-xs text-primary">Biaya admin {m.adminFeePercent}%</p>
+                    </div>
+                    <div className="flex items-center gap-1 rounded-lg bg-muted px-2 py-1">
+                      <Clock className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-[10px] font-semibold text-muted-foreground">~{m.estimasiMenit} menit</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Crypto */}
+          {crypto.length > 0 && (
+            <div>
+              <p className="text-xs font-bold text-muted-foreground mb-2 uppercase tracking-wider">Pembayaran Crypto Currency</p>
+              <div className="space-y-2">
+                {crypto.map((m) => (
+                  <button key={m.code} onClick={() => onSelect(m)}
+                    className={`w-full flex items-center gap-3 rounded-xl border p-3.5 text-left transition-all
+                      ${selectedCode === m.code ? "border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200" : "border-border bg-card hover:border-emerald-300"}`}>
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100">
+                      <CreditCard className="h-5 w-5 text-emerald-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-foreground">{m.name}</p>
+                      <p className="text-xs text-muted-foreground">Biaya admin {m.adminFeePercent}%</p>
+                    </div>
+                    <div className="flex items-center gap-1 rounded-lg bg-muted px-2 py-1">
+                      <Clock className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-[10px] font-semibold text-muted-foreground">~{m.estimasiMenit} menit</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {methods.length === 0 && (
+            <div className="py-8 text-center text-muted-foreground text-sm">Tidak ada metode tersedia</div>
+          )}
+        </div>
+      )}
+
+      <div className="flex gap-3">
+        <button onClick={onBack}
+          className="flex items-center gap-1.5 rounded-xl border border-border px-4 py-3 text-sm font-semibold hover:bg-muted transition-colors">
+          <ChevronLeft className="h-4 w-4" /> Kembali
+        </button>
+        <button onClick={onNext} disabled={!selectedCode}
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors">
+          Lanjutkan <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── STEP 3: Konfirmasi ──────────────────────────────────────────────────────
+function Step3Confirm({ amount, method, onConfirm, onBack, isProcessing }: {
+  amount: number; method: any; onConfirm: () => void; onBack: () => void; isProcessing: boolean;
+}) {
+  const adminFee = Math.ceil(amount * (method?.adminFeePercent ?? 0) / 100);
+  const total = amount + adminFee;
+  const now = new Date();
+
+  return (
+    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
+      className="space-y-4">
+      <div className="text-center">
+        <h2 className="text-lg font-black text-foreground">Konfirmasi Pembayaran</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">Periksa kembali informasi pembayaran deposit</p>
+      </div>
+
+      {/* Detail Card */}
+      <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
+        <div className="flex justify-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted">
+            <Building2 className="h-6 w-6 text-muted-foreground" />
+          </div>
+        </div>
+        <h3 className="text-center text-base font-black">Detail Pembayaran</h3>
+
+        <div className="space-y-3 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Metode</span>
+            <span className="font-bold">{method?.name ?? "—"}</span>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Tanggal Transaksi</p>
+            <p className="font-semibold text-sm">
+              {now.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })},{" "}
+              {now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })} WIB
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Currency</p>
+            <p className="font-semibold">IDR</p>
+          </div>
+        </div>
+
+        <div className="border-t border-border pt-3 space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Nominal</span>
+            <span className="font-semibold">{formatRupiah(amount)} IDR</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Biaya Admin</span>
+            <span className="font-semibold">{formatRupiah(adminFee)} IDR</span>
+          </div>
+          <div className="flex justify-between pt-1 border-t border-border">
+            <span className="font-bold">Total Pembayaran</span>
+            <span className="font-black text-primary">{formatRupiah(total)} IDR</span>
+          </div>
+        </div>
+
+        <p className="text-center text-[10px] text-muted-foreground">Gateway pembayaran oleh NOKOSMU</p>
+      </div>
+
+      <div className="flex gap-3">
+        <button onClick={onBack}
+          className="flex items-center gap-1.5 rounded-xl border border-border px-4 py-3 text-sm font-semibold hover:bg-muted transition-colors">
+          <ChevronLeft className="h-4 w-4" /> Kembali
+        </button>
+        <button onClick={onConfirm} disabled={isProcessing}
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-bold text-white disabled:opacity-60 hover:bg-primary/90 transition-colors">
+          {isProcessing ? <><Loader2 className="h-4 w-4 animate-spin" /> Memproses...</> : <><CheckCircle2 className="h-4 w-4" /> Konfirmasi</>}
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── STEP 4: Payment QR / Instructions ──────────────────────────────────────
+function Step4Payment({ result, amount, method, onReset }: {
+  result: any; amount: number; method: any; onReset: () => void;
+}) {
+  const [checking, setChecking] = useState(false);
+  const adminFee = Math.ceil(amount * (method?.adminFeePercent ?? 0) / 100);
+  const total = amount + adminFee;
+
+  const handleCheck = async () => {
+    setChecking(true);
+    await new Promise((r) => setTimeout(r, 3000));
+    setChecking(false);
+    toast.info("Sedang menunggu konfirmasi pembayaran...");
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+      className="space-y-4">
+      {/* Info banner */}
+      <div className="flex items-start gap-2 rounded-xl bg-blue-50 border border-blue-200 p-3">
+        <Info className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+        <p className="text-xs text-blue-700">Harap membayar sebelum waktu kadaluarsa yang ditentukan agar saldo dapat di proses</p>
+      </div>
+
+      {/* QR Code area */}
+      {result?.qrUrl ? (
+        <div className="rounded-2xl overflow-hidden" style={{ background: "linear-gradient(135deg,#1565C0,#1976D2)" }}>
+          <div className="p-5 text-center">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-1.5">
+                <QrCode className="h-5 w-5 text-white" />
+                <span className="text-white font-black text-sm">QRIS</span>
+              </div>
+              <span className="text-white/70 text-xs">GPN</span>
+            </div>
+            <p className="text-white font-bold text-sm mb-4">{result?.nmid ?? "NOKOSMU"}</p>
+            <div className="bg-white rounded-2xl p-4 mx-auto inline-block">
+              <img src={result.qrUrl} alt="QRIS QR Code" className="w-48 h-48 object-contain" />
+            </div>
+            <p className="text-white/70 text-xs mt-3">{result?.nmid && `NMID: ${result.nmid}`}</p>
+          </div>
+        </div>
+      ) : result?.paymentUrl ? (
+        <a href={result.paymentUrl} target="_blank" rel="noopener noreferrer"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-4 text-sm font-bold text-white hover:bg-primary/90 transition-colors">
+          <Wallet className="h-4 w-4" /> Buka Halaman Pembayaran →
+        </a>
+      ) : (
+        <div className="rounded-2xl bg-muted p-6 text-center">
+          <CreditCard className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
+          <p className="text-sm font-semibold text-foreground">Transfer ke rekening yang tertera</p>
+          {result?.vaNumber && (
+            <p className="mt-2 text-2xl font-black font-mono tracking-widest text-primary">{result.vaNumber}</p>
+          )}
+        </div>
+      )}
+
+      {/* Total */}
+      <div className="flex items-center justify-between rounded-xl bg-card border border-border px-4 py-3">
+        <span className="text-sm text-muted-foreground">Total</span>
+        <span className="font-black text-foreground">{formatRupiah(total)} IDR</span>
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-2">
+        <button onClick={onReset}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-border py-3 text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors">
+          Batalkan
+        </button>
+        {result?.qrUrl && (
+          <a href={result.qrUrl} download
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary py-3 text-sm font-bold text-white hover:bg-primary/90 transition-colors">
+            <Download className="h-4 w-4" /> Download
+          </a>
+        )}
+      </div>
+
+      {/* Check payment */}
+      <button onClick={handleCheck} disabled={checking}
+        className="flex w-full items-center justify-center gap-2 rounded-xl border border-border py-3 text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors disabled:opacity-60">
+        {checking
+          ? <><Loader2 className="h-4 w-4 animate-spin" /> Mengecek pembayaran...</>
+          : <><RefreshCw className="h-4 w-4" /> Mengecek pembayaran</>}
+      </button>
+      <p className="text-center text-[10px] text-muted-foreground">
+        Jangan membatalkan apabila telah membayar karena menggangu proses pengecekan dan jangan di bayar apabila telah di batalkan atau expired
+      </p>
+
+      {/* Detail */}
+      <div className="rounded-xl bg-card border border-border p-4 space-y-2 text-sm">
+        <h4 className="font-bold text-foreground">Detail Pembayaran</h4>
+        <div className="flex justify-between"><span className="text-muted-foreground">Nominal</span><span className="font-semibold">{formatRupiah(amount)} IDR</span></div>
+        <div className="flex justify-between"><span className="text-muted-foreground">Biaya Admin</span><span className="font-semibold">{formatRupiah(adminFee)} IDR</span></div>
+        <div className="flex justify-between border-t border-border pt-2"><span className="font-bold">Total</span><span className="font-black text-primary">{formatRupiah(total)} IDR</span></div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── MAIN Wizard Component ────────────────────────────────────────────────────
 export default function DepositPage() {
-  const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState("qris");
+  const [step, setStep] = useState(1);
+  const [amount, setAmount] = useState(0);
+  const [method, setMethod] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentResult, setPaymentResult] = useState<any>(null);
+  const [result, setResult] = useState<any>(null);
 
-  const { data: methodsData } = useSWR("/api/deposit", fetcher);
-  const methods = methodsData?.methods ?? [];
-
-  const numAmount = parseInt(amount.replace(/[^0-9]/g, "")) || 0;
-
-  const handleDeposit = async () => {
-    if (numAmount < 10000) { toast.error("Minimal deposit adalah Rp 10.000"); return; }
+  const handleConfirm = async () => {
+    if (!method || amount < 10000) return;
     setIsProcessing(true);
     try {
       const res = await fetch("/api/deposit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: numAmount, method }),
+        body: JSON.stringify({ amount, method: method.code }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setPaymentResult(data);
+      if (!res.ok) throw new Error(data.error ?? "Gagal membuat invoice");
+      setResult(data);
+      setStep(4);
     } catch (err: any) {
-      toast.error(err.message || "Gagal membuat invoice deposit");
+      toast.error(err.message);
     } finally {
       setIsProcessing(false);
     }
   };
 
+  const reset = () => { setStep(1); setAmount(0); setMethod(null); setResult(null); };
+
   return (
-    <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="space-y-6 max-w-2xl">
-      <motion.div variants={staggerItem}>
-        <h1 className="text-3xl font-black tracking-tight text-foreground">Top Up Saldo</h1>
-        <p className="mt-1.5 text-muted-foreground">Isi saldo secara instan via QRIS atau Virtual Account. Konfirmasi otomatis.</p>
-      </motion.div>
+    <div className="max-w-lg mx-auto">
+      {/* Header */}
+      <div className="mb-5">
+        <h1 className="text-2xl font-black tracking-tight text-foreground flex items-center gap-2">
+          <Building2 className="h-6 w-6 text-primary" /> Top Up Saldo
+        </h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Isi saldo dengan cepat & aman</p>
+      </div>
 
-      <motion.div variants={staggerItem} className="rounded-2xl border border-border bg-card p-6 space-y-6">
-        {/* Quick amounts */}
-        <div className="space-y-3">
-          <p className="text-sm font-bold text-foreground">Pilih Nominal</p>
-          <div className="grid grid-cols-3 gap-2.5">
-            {QUICK_AMOUNTS.map((val, i) => {
-              const isSelected = numAmount === val;
-              return (
-                <motion.button
-                  key={val}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: i * 0.04, type: "spring", stiffness: 400, damping: 25 }}
-                  onClick={() => setAmount(String(val))}
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.95 }}
-                  className={`rounded-xl border py-3 text-sm font-bold transition-all ${
-                    isSelected
-                      ? "border-primary bg-primary text-primary-foreground shadow-md shadow-primary/20"
-                      : "border-border bg-background hover:border-primary/40 hover:bg-primary/5"
-                  }`}
-                >
-                  {formatRupiah(val)}
-                </motion.button>
-              );
-            })}
-          </div>
-        </div>
+      {/* Card */}
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        {/* Step indicator (hanya di step 2 & 3) */}
+        {(step === 2 || step === 3) && <StepIndicator step={step} />}
 
-        {/* Custom amount */}
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-muted-foreground">Atau masukkan nominal lain</label>
-          <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">Rp</span>
-            <input
-              type="text"
-              placeholder="10000"
-              value={amount}
-              onChange={e => setAmount(e.target.value.replace(/[^0-9]/g, ""))}
-              className="block w-full rounded-xl border border-input bg-background pl-10 pr-4 py-3 text-lg font-bold placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
-            />
-          </div>
-        </div>
-
-        {/* Payment methods */}
-        <div className="space-y-3">
-          <p className="text-sm font-bold text-foreground">Metode Pembayaran</p>
-          <div className="grid gap-2.5">
-            {methods.map((m: any, i: number) => (
-              <motion.button
-                key={m.value}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                onClick={() => setMethod(m.value)}
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.98 }}
-                transition={{ type: "spring", stiffness: 500, damping: 30, delay: 0.1 + i * 0.05 }}
-                className={`flex items-center justify-between rounded-xl border p-4 text-left transition-all ${
-                  method === m.value
-                    ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                    : "border-border bg-background hover:bg-muted"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  {m.value === "qris"
-                    ? <QrCode className="h-5 w-5 text-primary" />
-                    : <CreditCard className="h-5 w-5 text-muted-foreground" />}
-                  <span className="text-sm font-semibold text-foreground">{m.label}</span>
-                </div>
-                {method === m.value && (
-                  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 600, damping: 25 }}>
-                    <Check className="h-5 w-5 text-primary" />
-                  </motion.div>
-                )}
-              </motion.button>
-            ))}
-          </div>
-        </div>
-
-        {/* CTA */}
-        <motion.button
-          onClick={handleDeposit}
-          disabled={numAmount < 10000 || isProcessing}
-          whileHover={numAmount >= 10000 ? { scale: 1.02 } : {}}
-          whileTap={numAmount >= 10000 ? { scale: 0.96 } : {}}
-          transition={{ type: "spring", stiffness: 500, damping: 30 }}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          {isProcessing
-            ? <><Loader2 className="h-4 w-4 animate-spin" /> Memproses...</>
-            : <><Wallet className="h-4 w-4" /> Lanjutkan Pembayaran{numAmount >= 10000 ? ` — ${formatRupiah(numAmount)}` : ""}</>
-          }
-        </motion.button>
-      </motion.div>
-
-      {/* Payment Dialog */}
-      <Dialog open={!!paymentResult} onOpenChange={open => !open && setPaymentResult(null)}>
-        <DialogContent className="sm:max-w-md rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-center text-xl font-black">Instruksi Pembayaran</DialogTitle>
-            <DialogDescription className="text-center text-sm text-muted-foreground">
-              Segera selesaikan sebelum batas waktu habis.
-            </DialogDescription>
-          </DialogHeader>
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="flex flex-col items-center space-y-5 py-2"
-          >
-            <div className="w-full rounded-xl bg-primary/5 border border-primary/15 p-5 text-center">
-              <p className="text-xs text-muted-foreground mb-1">Total Bayar</p>
-              <p className="text-4xl font-black text-primary">{formatRupiah(numAmount)}</p>
-              <p className="text-xs text-muted-foreground mt-2 font-mono">{paymentResult?.orderId}</p>
-            </div>
-
-            {paymentResult?.vaNumber && (
-              <motion.div
-                className="w-full cursor-pointer space-y-2"
-                onClick={() => { navigator.clipboard.writeText(paymentResult.vaNumber); toast.success("VA Number disalin"); }}
-              >
-                <p className="text-xs font-semibold text-muted-foreground">Nomor Virtual Account</p>
-                <motion.div
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                  className="flex items-center justify-between rounded-xl border-2 border-primary/20 bg-primary/5 px-5 py-3.5"
-                >
-                  <span className="font-mono text-2xl font-black tracking-widest">{paymentResult.vaNumber}</span>
-                  <Copy className="h-5 w-5 text-muted-foreground" />
-                </motion.div>
-              </motion.div>
-            )}
-
-            {paymentResult?.paymentUrl && (
-              <motion.a
-                href={paymentResult.paymentUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.97 }}
-                transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground"
-              >
-                Buka Halaman Pembayaran →
-              </motion.a>
-            )}
-
-            <p className="text-xs text-center text-muted-foreground">
-              Saldo masuk otomatis setelah pembayaran terverifikasi.
-            </p>
-          </motion.div>
-        </DialogContent>
-      </Dialog>
-    </motion.div>
+        <AnimatePresence mode="wait">
+          {step === 1 && (
+            <Step1Amount key="s1" amount={amount} setAmount={setAmount}
+              onNext={() => setStep(2)} />
+          )}
+          {step === 2 && (
+            <Step2Method key="s2" amount={amount} selectedCode={method?.code ?? ""}
+              onSelect={setMethod} onNext={() => setStep(3)} onBack={() => setStep(1)} />
+          )}
+          {step === 3 && (
+            <Step3Confirm key="s3" amount={amount} method={method}
+              onConfirm={handleConfirm} onBack={() => setStep(2)} isProcessing={isProcessing} />
+          )}
+          {step === 4 && result && (
+            <Step4Payment key="s4" result={result} amount={amount} method={method} onReset={reset} />
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
   );
 }
