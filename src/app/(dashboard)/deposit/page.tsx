@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import useSWR from "swr";
+import QRCode from "react-qr-code";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 const QUICK = [20000, 50000, 100000, 250000, 500000, 1000000];
@@ -280,14 +281,10 @@ function Step4Payment({ result, amount, method, onReset }: {
   };
 
   // ── Tentukan tipe konten yang ditampilkan ─────────────────────────────────
-  // qrUrl     → gambar QR Code
-  // paymentUrl → tautan gateway (harus dimulai dengan http)
-  // instruction → teks instruksi manual (crypto/transfer) — BUKAN href
-  // vaNumber  → nomor virtual account
   const isValidUrl = (s?: string) => !!s && (s.startsWith("http://") || s.startsWith("https://"));
   const showQR       = !!result?.qrUrl;
-  const showGateway  = !showQR && isValidUrl(result?.paymentUrl);
-  const showInstruction = !showQR && !showGateway && !!result?.instruction;
+  const showGateway  = isValidUrl(result?.paymentUrl);
+  const showInstruction = !!result?.instruction;
   const showVA       = !!result?.vaNumber;
 
   return (
@@ -312,7 +309,7 @@ function Step4Payment({ result, amount, method, onReset }: {
             </div>
             <p className="text-white font-bold text-sm mb-4">{result?.nmid ?? "NOKOSMU"}</p>
             <div className="bg-white rounded-2xl p-4 mx-auto inline-block">
-              <img src={result.qrUrl} alt="QRIS QR Code" className="w-48 h-48 object-contain" />
+              <QRCode value={result.qrUrl} size={192} style={{ height: "auto", maxWidth: "100%", width: "100%" }} viewBox={`0 0 192 192`} />
             </div>
             <p className="text-white/70 text-xs mt-3">{result?.nmid && `NMID: ${result.nmid}`}</p>
           </div>
