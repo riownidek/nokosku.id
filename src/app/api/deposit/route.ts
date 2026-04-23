@@ -72,6 +72,7 @@ export async function POST(req: Request) {
     let paymentUrl: string | undefined;
     let vaNumber: string | undefined;
     let qrUrl: string | undefined;
+    let instruction: string | undefined; // teks instruksi — BUKAN URL
 
     if (PAKASIR_SUPPORTED.includes(method)) {
       const pakasirRes = await createPakasirDeposit(
@@ -90,12 +91,13 @@ export async function POST(req: Request) {
       vaNumber = pakasirRes.data.va_number;
       qrUrl = pakasirRes.data.qr_string;
     } else {
-      // Crypto/manual method — tidak melalui Pakasir, langsung beri instruksi dari DB
-      const instruction = await prisma.paymentMethod.findFirst({
+      // Crypto/manual method — tidak melalui Pakasir
+      // Ambil teks instruksi dan simpan ke field 'instruction' (BUKAN paymentUrl)
+      const methodRecord = await prisma.paymentMethod.findFirst({
         where: { code: method },
         select: { instruction: true },
       });
-      paymentUrl = instruction?.instruction ?? undefined;
+      instruction = methodRecord?.instruction ?? undefined;
     }
 
     // ── Simpan transaksi ke DB ────────────────────────────────────────────────
@@ -115,10 +117,11 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      paymentUrl,
+      paymentUrl,      // URL gateway Pakasir (hanya untuk metode QRIS/VA/e-wallet)
       orderId,
       vaNumber,
       qrUrl,
+      instruction,     // Teks instruksi manual (crypto/transfer) — tampilkan sebagai teks
       method: paymentMethod.name,
       adminFee: Math.ceil(amount * paymentMethod.adminFeePercent / 100),
     });

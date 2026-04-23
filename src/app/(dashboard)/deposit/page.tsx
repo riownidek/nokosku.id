@@ -279,6 +279,17 @@ function Step4Payment({ result, amount, method, onReset }: {
     toast.info("Sedang menunggu konfirmasi pembayaran...");
   };
 
+  // ── Tentukan tipe konten yang ditampilkan ─────────────────────────────────
+  // qrUrl     → gambar QR Code
+  // paymentUrl → tautan gateway (harus dimulai dengan http)
+  // instruction → teks instruksi manual (crypto/transfer) — BUKAN href
+  // vaNumber  → nomor virtual account
+  const isValidUrl = (s?: string) => !!s && (s.startsWith("http://") || s.startsWith("https://"));
+  const showQR       = !!result?.qrUrl;
+  const showGateway  = !showQR && isValidUrl(result?.paymentUrl);
+  const showInstruction = !showQR && !showGateway && !!result?.instruction;
+  const showVA       = !!result?.vaNumber;
+
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
       className="space-y-4">
@@ -288,8 +299,8 @@ function Step4Payment({ result, amount, method, onReset }: {
         <p className="text-xs text-blue-700">Harap membayar sebelum waktu kadaluarsa yang ditentukan agar saldo dapat di proses</p>
       </div>
 
-      {/* QR Code area */}
-      {result?.qrUrl ? (
+      {/* QR Code — hanya tampil jika qrUrl berisi URL gambar QR */}
+      {showQR && (
         <div className="rounded-2xl overflow-hidden" style={{ background: "linear-gradient(135deg,#1565C0,#1976D2)" }}>
           <div className="p-5 text-center">
             <div className="flex items-center justify-between mb-3">
@@ -306,18 +317,40 @@ function Step4Payment({ result, amount, method, onReset }: {
             <p className="text-white/70 text-xs mt-3">{result?.nmid && `NMID: ${result.nmid}`}</p>
           </div>
         </div>
-      ) : result?.paymentUrl ? (
+      )}
+
+      {/* Gateway URL — hanya jika benar-benar URL HTTP */}
+      {showGateway && (
         <a href={result.paymentUrl} target="_blank" rel="noopener noreferrer"
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-4 text-sm font-bold text-white hover:bg-primary/90 transition-colors">
           <Wallet className="h-4 w-4" /> Buka Halaman Pembayaran →
         </a>
-      ) : (
+      )}
+
+      {/* Instruksi teks (crypto/transfer manual) — tampil sebagai TEKS, bukan link */}
+      {showInstruction && (
+        <div className="rounded-2xl border border-border bg-muted p-5 space-y-2">
+          <div className="flex items-center gap-2">
+            <CreditCard className="h-5 w-5 text-primary shrink-0" />
+            <p className="text-sm font-bold text-foreground">Instruksi Pembayaran</p>
+          </div>
+          <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{result.instruction}</p>
+        </div>
+      )}
+
+      {/* VA Number */}
+      {showVA && (
+        <div className="rounded-2xl bg-muted p-4 text-center">
+          <p className="text-xs text-muted-foreground mb-1">Nomor Virtual Account</p>
+          <p className="text-2xl font-black font-mono tracking-widest text-primary">{result.vaNumber}</p>
+        </div>
+      )}
+
+      {/* Fallback: tidak ada data sama sekali */}
+      {!showQR && !showGateway && !showInstruction && !showVA && (
         <div className="rounded-2xl bg-muted p-6 text-center">
           <CreditCard className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
-          <p className="text-sm font-semibold text-foreground">Transfer ke rekening yang tertera</p>
-          {result?.vaNumber && (
-            <p className="mt-2 text-2xl font-black font-mono tracking-widest text-primary">{result.vaNumber}</p>
-          )}
+          <p className="text-sm font-semibold text-foreground">Menunggu konfirmasi dari penyedia pembayaran</p>
         </div>
       )}
 
@@ -333,7 +366,7 @@ function Step4Payment({ result, amount, method, onReset }: {
           className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-border py-3 text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors">
           Batalkan
         </button>
-        {result?.qrUrl && (
+        {showQR && result?.qrUrl && (
           <a href={result.qrUrl} download
             className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary py-3 text-sm font-bold text-white hover:bg-primary/90 transition-colors">
             <Download className="h-4 w-4" /> Download
