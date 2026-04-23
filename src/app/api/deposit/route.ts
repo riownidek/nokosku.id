@@ -66,17 +66,35 @@ export async function POST(req: Request) {
     console.log(`${TAG} Creating deposit | orderId=${orderId} | method=${method} | amount=${amount}`);
 
     // ── Buat transaksi di Pakasir ─────────────────────────────────────────────
-    // Pakasir hanya terima method dari union type-nya — petakan code ke pakasir method
-    // Jika method adalah crypto (tidak ada di Pakasir), gunakan manual/instruksi
-    const PAKASIR_SUPPORTED = ["qris","bca_va","bni_va","bri_va","mandiri_va","permata_va","cimb_va","danamon_va","ovo","dana","gopay","shopeepay"];
+    // Pakasir hanya terima method baku (qris, bca_va, dll).
+    // Kita petakan `method` (kode unik dari DB) ke metode Pakasir.
+    const getPakasirMethod = (code: string): string | null => {
+      const c = code.toLowerCase();
+      if (c.includes("qris")) return "qris";
+      if (c.includes("bca")) return "bca_va";
+      if (c.includes("bni")) return "bni_va";
+      if (c.includes("bri")) return "bri_va";
+      if (c.includes("mandiri")) return "mandiri_va";
+      if (c.includes("permata")) return "permata_va";
+      if (c.includes("cimb")) return "cimb_va";
+      if (c.includes("danamon")) return "danamon_va";
+      if (c.includes("ovo")) return "ovo";
+      if (c.includes("dana")) return "dana";
+      if (c.includes("gopay")) return "gopay";
+      if (c.includes("shopee")) return "shopeepay";
+      return null;
+    };
+
+    const pakasirMethod = getPakasirMethod(method);
+
     let paymentUrl: string | undefined;
     let vaNumber: string | undefined;
     let qrUrl: string | undefined;
     let instruction: string | undefined; // teks instruksi — BUKAN URL
 
-    if (PAKASIR_SUPPORTED.includes(method)) {
+    if (pakasirMethod) {
       const pakasirRes = await createPakasirDeposit(
-        method as any,
+        pakasirMethod as any,
         orderId,
         amount,
         { customerName: user?.name ?? undefined, customerEmail: user?.email }
