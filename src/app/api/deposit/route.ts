@@ -115,9 +115,15 @@ export async function POST(req: Request) {
         }, { status: 502 });
       }
 
-      if (!pakasirRes.status) {
-        console.error(`${TAG} Pakasir status=false:`, pakasirRes.message);
-        return NextResponse.json({ error: pakasirRes.message ?? "Gagal membuat invoice Pakasir" }, { status: 400 });
+      console.log(`${TAG} Pakasir Raw Response:`, JSON.stringify(pakasirRes));
+
+      // Pakasir bisa jadi mengembalikan { code: 200, data: {...} } atau { status: true, data: {...} }
+      // Kita cek keberadaan 'data' sebagai penanda sukses jika 'status' tidak eksplisit true
+      const isSuccess = pakasirRes.status === true || (pakasirRes.status as any) === 200 || !!pakasirRes.data;
+
+      if (!isSuccess) {
+        console.error(`${TAG} Pakasir request failed. Response:`, pakasirRes);
+        return NextResponse.json({ error: pakasirRes.message ?? "Gagal membuat invoice Pakasir. Pastikan API Key valid." }, { status: 400 });
       }
 
       // Pakasir boleh tidak return payment_url untuk QRIS (hanya qr_string)
@@ -134,19 +140,23 @@ export async function POST(req: Request) {
     }
 
     // ── Simpan transaksi ke DB ─────────────────────────────────────────────────
-    await prisma.transaction.create({
-      data: {
-        userId: session.user.id,
-        amount,
-        status: "PENDING",
-        type: "DEPOSIT",
-        gatewayReference: orderId,
-        paymentMethod: method,
-        paymentUrl: paymentUrl ?? null,
-      },
-    });
-
-    console.log(`${TAG} Transaksi disimpan | orderId=${orderId}`);
+    try {
+      await prisma.transaction.create({
+        data: {
+          userId: session.user.id,
+          amount,
+          status: "PENDING",
+          type: "DEPOSIT",
+          gatewayReference: orderId,
+          paymentMethod: method,
+          paymentUrl: paymentUrl ?? null,
+        },
+      });
+      console.log(`${TAG} Transaksi disimpan | orderId=${orderId}`);
+    } catch (dbErr: any) {
+      console.error(`${TAG} DB Insert Error:`, dbErr);
+      return NextResponse.json({ error: `Gagal menyimpan transaksi ke database: ${dbErr?.message ?? "Unknown DB error"}` }, { status: 500 });
+    }
 
     return NextResponse.json({
       success: true,
