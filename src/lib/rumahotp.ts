@@ -123,7 +123,14 @@ function normalizeArray<T>(raw: unknown, context: string): T[] {
     if (Array.isArray(obj.operators)) return obj.operators as T[];
     if (Array.isArray(obj.products)) return obj.products as T[];
     if (obj.message || obj.error) {
-      throw new Error(`RumahOTP ${context} error: ${obj.message ?? obj.error}`);
+      // Serialize error properly — obj.error can be an object like {message: '...'}
+      const errDetail =
+        typeof obj.error === "string"
+          ? obj.error
+          : typeof obj.error === "object" && obj.error !== null
+          ? (obj.error as any).message ?? JSON.stringify(obj.error)
+          : String(obj.error ?? obj.message ?? "Unknown error");
+      throw new Error(`RumahOTP ${context} error: ${errDetail}`);
     }
   }
   console.error(`[RumahOTP] ${context}: unexpected response shape:`, raw);
@@ -135,8 +142,9 @@ export async function getOTPServices(): Promise<OTPService[]> {
   return normalizeArray<OTPService>(raw, "getOTPServices");
 }
 
-export async function getOTPCountries(): Promise<OTPCountry[]> {
-  const raw = await apiFetch<unknown>("/v2/countries");
+export async function getOTPCountries(serviceId?: string | number): Promise<OTPCountry[]> {
+  const query = serviceId ? `?service_id=${serviceId}` : "";
+  const raw = await apiFetch<unknown>(`/v2/countries${query}`);
   return normalizeArray<OTPCountry>(raw, "getOTPCountries");
 }
 
@@ -180,8 +188,9 @@ export interface H2HOrderResponse {
 }
 
 export async function getH2HProducts(category?: string): Promise<H2HProduct[]> {
+  // Correct endpoint: /v2/product (not /v1/h2h/product)
   const query = category ? `?category=${category}` : "";
-  const raw = await apiFetch<unknown>(`/v1/h2h/product${query}`);
+  const raw = await apiFetch<unknown>(`/v2/product${query}`);
   return normalizeArray<H2HProduct>(raw, "getH2HProducts");
 }
 

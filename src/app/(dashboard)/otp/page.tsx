@@ -45,9 +45,9 @@ export default function OTPPage() {
   const [isBuying, setIsBuying] = useState(false);
   const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null);
 
-  // Fetch countries when service selected
+  // Fetch countries when service selected — pass service_id as required by RumahOTP API
   const { data: countries, isLoading: loadingCountries } = useSWR<Country[]>(
-    selectedService ? "/api/otp/countries" : null,
+    selectedService ? `/api/otp/countries?service=${selectedService.code}` : null,
     fetcher
   );
 
