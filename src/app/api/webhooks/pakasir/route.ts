@@ -17,10 +17,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ received: true });
   }
 
-  const { order_id, status } = body ?? {};
+  console.log(`${TAG} RAW WEBHOOK PAYLOAD:`, JSON.stringify(body));
+
+  // Mendukung berbagai struktur payload dari Pakasir
+  const order_id = body?.order_id ?? body?.reference ?? body?.data?.order_id;
+  const status = body?.status ?? body?.data?.status;
 
   if (!order_id || !status) {
-    console.error(`${TAG} Missing order_id or status`, { order_id, status });
+    console.error(`${TAG} Missing order_id or status`);
     return NextResponse.json({ received: true });
   }
 
@@ -59,8 +63,12 @@ export async function POST(req: Request) {
     }
 
     // Jika pembayaran failed/expired → tandai FAILED
-    if (!verified.status || verified.data?.status !== "success") {
-      if (verified.data?.status === "failed" || verified.data?.status === "expired") {
+    const verifyStatus = verified.data?.status?.toLowerCase() ?? "";
+    const isSuccess = ["success", "completed", "paid", "settled"].includes(verifyStatus);
+    const isFailed = ["failed", "expired", "canceled", "cancelled"].includes(verifyStatus);
+
+    if (!verified.status || !isSuccess) {
+      if (isFailed) {
         try {
           await prisma.transaction.update({
             where: { id: transaction.id },
@@ -71,7 +79,7 @@ export async function POST(req: Request) {
           console.error(`${TAG} DB update FAILED error:`, dbErr);
         }
       }
-      return NextResponse.json({ received: true, payment_status: verified.data?.status ?? "unconfirmed" });
+      return NextResponse.json({ received: true, payment_status: verifyStatus || "unconfirmed" });
     }
 
     // ── Pembayaran sukses — update saldo secara atomik ───────────────────────
