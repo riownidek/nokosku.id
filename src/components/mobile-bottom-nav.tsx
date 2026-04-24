@@ -12,7 +12,7 @@ const LEFT_NAV = [
 ];
 const RIGHT_NAV = [
   { href: "/history",   label: "Aktivitas", Icon: History },
-  { href: "/otp",       label: "Profil",    Icon: User },   // ← "Profil" bukan "Layanan"
+  { href: "/profile",   label: "Profil",    Icon: User },
 ];
 
 function NavItem({ href, label, Icon, isActive }: {

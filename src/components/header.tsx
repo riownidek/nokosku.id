@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { Bell, ChevronDown, LogOut, LayoutDashboard, Wallet, Plus, ShieldCheck } from "lucide-react";
+import { Bell, ChevronDown, LogOut, LayoutDashboard, Wallet, Plus, ShieldCheck, User } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import useSWR from "swr";
@@ -144,6 +144,13 @@ export function Header() {
                     className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                   >
                     <LayoutDashboard className="h-4 w-4" /> Dashboard
+                  </Link>
+                  <Link
+                    href="/profile"
+                    onClick={() => setDropdownOpen(false)}
+                    className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  >
+                    <User className="h-4 w-4" /> Profil
                   </Link>
                   <Link
                     href="/deposit"

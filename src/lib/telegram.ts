@@ -3,22 +3,34 @@
  * Mengirim pesan notifikasi ke Telegram Bot secara asinkron
  */
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
-const CHAT_ID = process.env.TELEGRAM_CHAT_ID!;
-const TG_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
+import { prisma } from "@/lib/prisma";
 
 /**
- * Kirim pesan teks ke Telegram (async, tidak blokir)
+ * Kirim pesan teks ke Telegram (async, tidak blokir).
+ * Konfigurasi diambil dari AppConfig.
  */
 export async function sendTelegramMessage(
   text: string,
-  chatId?: string
+  chatIdOverride?: string
 ): Promise<void> {
   try {
-    const targetChat = chatId ?? CHAT_ID;
-    if (!BOT_TOKEN || !targetChat) return;
+    const config = await prisma.appConfig.findMany({
+      where: { key: { in: ["telegram_bot_token", "telegram_chat_id"] } },
+    });
 
-    await fetch(`${TG_API}/sendMessage`, {
+    const token = config.find((c) => c.key === "telegram_bot_token")?.value?.trim();
+    const chatIdDb = config.find((c) => c.key === "telegram_chat_id")?.value?.trim();
+
+    const targetChat = chatIdOverride ?? chatIdDb;
+
+    if (!token || !targetChat) {
+      console.warn("[Telegram] Token atau Chat ID belum dikonfigurasi di AppConfig.");
+      return;
+    }
+
+    const tgApiUrl = `https://api.telegram.org/bot${token}/sendMessage`;
+
+    await fetch(tgApiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

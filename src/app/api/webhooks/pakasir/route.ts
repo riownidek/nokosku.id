@@ -79,6 +79,18 @@ export async function POST(req: Request) {
     const userId = transaction.userId;
     const referrerId = transaction.user.referredBy;
 
+    // Kunci atomik: pastikan status MURNI masih PENDING sebelum diubah
+    const lockUpdate = await prisma.transaction.updateMany({
+      where: { id: transaction.id, status: "PENDING" },
+      data: { status: "SUCCESS" },
+    });
+
+    // Jika count 0, artinya transaksi sudah tidak PENDING (sudah diproses oleh request lain bersamaan)
+    if (lockUpdate.count === 0) {
+      console.warn(`${TAG} Race condition prevented! Transaction already processed: order_id=${order_id}`);
+      return NextResponse.json({ received: true, already_processed: true });
+    }
+
     let commissionAmount = 0;
     if (referrerId) {
       try {
@@ -89,15 +101,10 @@ export async function POST(req: Request) {
         commissionAmount = Math.floor((depositAmount * percent) / 100);
       } catch (commErr) {
         console.error(`${TAG} Failed to calculate commission:`, commErr);
-        // Lanjut tanpa komisi — jangan gagalkan deposit utama
       }
     }
 
     const ops: any[] = [
-      prisma.transaction.update({
-        where: { id: transaction.id },
-        data: { status: "SUCCESS" },
-      }),
       prisma.user.update({
         where: { id: userId },
         data: { balance: { increment: depositAmount } },
@@ -123,7 +130,7 @@ export async function POST(req: Request) {
     }
 
     const results = await prisma.$transaction(ops);
-    const updatedUser = results[1] as any;
+    const updatedUser = results[0] as any; // Index 0 is the user update now
     const newBalance = Number(updatedUser.balance);
 
     console.log(`${TAG} SUCCESS: order_id=${order_id} user=${transaction.user.email} amount=${depositAmount} newBalance=${newBalance}`);
