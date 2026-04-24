@@ -4,30 +4,25 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
-  LayoutDashboard, Users, Receipt, Settings, Smartphone, ArrowLeft, LogOut, ShieldCheck
+  LayoutDashboard, Users, Receipt, Settings, ArrowLeft, LogOut, ShieldCheck
 } from "lucide-react";
-import { motion } from "framer-motion";
 import { signOut } from "next-auth/react";
-
-const navItems = [
-  { href: "/admin", label: "Overview", icon: LayoutDashboard },
-  // Since the existing admin page is a single-page with tabs, the sidebar might just act as anchor links or we just keep it simple.
-  // Actually, wait, the existing admin page has Tabs for Users, Transactions, Settings.
-  // If we want a sidebar, maybe they just point to /admin? Or perhaps the user means "these features are in the admin page".
-  // Let's just create generic items and since it's a single page app at /admin, we can let them click or we just show them as active.
-  { href: "#", label: "Manajemen Pengguna", icon: Users },
-  { href: "#", label: "Log Transaksi", icon: Receipt },
-  { href: "#", label: "App Config", icon: Settings },
-];
 
 export function AdminSidebar() {
   const pathname = usePathname();
+
+  const navItems = [
+    { href: "/admin", label: "Dasbor Admin", icon: LayoutDashboard },
+    { href: "/admin/users", label: "Manajemen Pengguna", icon: Users },
+    { href: "/admin/transactions", label: "Log Transaksi", icon: Receipt },
+    { href: "/admin/config", label: "App Config", icon: Settings },
+  ];
 
   return (
     <aside
       className="hidden md:flex flex-col h-full w-64 shrink-0"
       style={{
-        background: "hsl(220, 30%, 12%)", // Dark, distinct admin sidebar
+        background: "hsl(220, 30%, 12%)",
         color: "white",
         borderRight: "1px solid hsl(220, 30%, 18%)",
       }}
@@ -48,28 +43,29 @@ export function AdminSidebar() {
         <p className="px-2 pb-3 text-[10px] font-bold uppercase tracking-widest text-white/50">
           Administrator
         </p>
-        
-        <Link
-          href="/admin"
-          className={cn("sidebar-link active flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all", "bg-white/10 text-white")}
-        >
-          <LayoutDashboard className="h-4 w-4 shrink-0" />
-          <span className="text-sm font-medium">Dasbor Admin</span>
-        </Link>
-        
-        {/* We can't link to separate pages if they don't exist, but we show them as disabled or just informative */}
-        <div className="px-3 py-2.5 flex items-center gap-3 text-white/60">
-          <Users className="h-4 w-4 shrink-0" />
-          <span className="text-sm font-medium">Manajemen Data</span>
-        </div>
-        <div className="px-3 py-2.5 flex items-center gap-3 text-white/60">
-          <Receipt className="h-4 w-4 shrink-0" />
-          <span className="text-sm font-medium">Log Transaksi</span>
-        </div>
-        <div className="px-3 py-2.5 flex items-center gap-3 text-white/60">
-          <Settings className="h-4 w-4 shrink-0" />
-          <span className="text-sm font-medium">App Config</span>
-        </div>
+
+        {navItems.map((item) => {
+          // Strict exact match for /admin, prefix match for others
+          const isActive = item.href === "/admin" 
+            ? pathname === "/admin" 
+            : pathname.startsWith(item.href);
+            
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all",
+                isActive 
+                  ? "bg-white/10 text-white shadow-sm" 
+                  : "text-white/60 hover:bg-white/5 hover:text-white"
+              )}
+            >
+              <item.icon className={cn("h-4 w-4 shrink-0", isActive ? "text-red-400" : "")} />
+              <span className="text-sm font-medium">{item.label}</span>
+            </Link>
+          );
+        })}
       </nav>
 
       {/* Footer / Back to User */}
