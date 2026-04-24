@@ -117,21 +117,32 @@ export async function POST(req: Request) {
 
       console.log(`${TAG} Pakasir Raw Response:`, JSON.stringify(pakasirRes));
 
-      // Pakasir bisa jadi mengembalikan { code: 200, data: {...} } atau { status: true, data: {...} }
-      // Kita cek keberadaan 'data' sebagai penanda sukses jika 'status' tidak eksplisit true
-      const isSuccess = pakasirRes.status === true || (pakasirRes.status as any) === 200 || !!pakasirRes.data;
+      const isSuccess = !!pakasirRes.payment || pakasirRes.status === true || (pakasirRes.status as any) === 200 || !!pakasirRes.data;
 
       if (!isSuccess) {
         console.error(`${TAG} Pakasir request failed. Response:`, pakasirRes);
         return NextResponse.json({ error: pakasirRes.message ?? "Gagal membuat invoice Pakasir. Pastikan API Key valid." }, { status: 400 });
       }
 
-      // Pakasir boleh tidak return payment_url untuk QRIS (hanya qr_string)
-      paymentUrl = pakasirRes.data?.payment_url ?? undefined;
-      vaNumber   = pakasirRes.data?.va_number ?? undefined;
-      qrUrl      = pakasirRes.data?.qr_string ?? undefined;
-
-      console.log(`${TAG} Pakasir OK | paymentUrl=${!!paymentUrl} qrUrl=${!!qrUrl} vaNumber=${!!vaNumber}`);
+      if (pakasirRes.payment) {
+        const pm = pakasirRes.payment;
+        if (pm.payment_method.includes("qris")) {
+          qrUrl = pm.payment_number;
+          paymentUrl = pm.payment_number; // Simpan QR string ke DB
+        } else if (pm.payment_method.includes("va") || pm.payment_method.includes("virtual_account")) {
+          vaNumber = pm.payment_number;
+          paymentUrl = pm.payment_number; // Simpan VA ke DB
+        } else {
+          paymentUrl = pm.payment_url || pm.payment_number;
+        }
+        console.log(`${TAG} Pakasir OK (New Format) | method=${pm.payment_method} qrUrl=${!!qrUrl} vaNumber=${!!vaNumber}`);
+      } else {
+        // Fallback untuk struktur legacy
+        paymentUrl = pakasirRes.data?.payment_url ?? undefined;
+        vaNumber   = pakasirRes.data?.va_number ?? undefined;
+        qrUrl      = pakasirRes.data?.qr_string ?? undefined;
+        console.log(`${TAG} Pakasir OK (Legacy Format) | paymentUrl=${!!paymentUrl} qrUrl=${!!qrUrl} vaNumber=${!!vaNumber}`);
+      }
     } else {
       // ── Alur Manual/Crypto ───────────────────────────────────────────────────
       // Gunakan instruction dari DB sebagai panduan, bukan href

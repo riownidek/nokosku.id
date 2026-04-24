@@ -71,11 +71,24 @@ export interface PakasirCreatePayload {
 }
 
 export interface PakasirCreateResponse {
-  status: boolean;
-  message: string;
-  data?: {
+  payment?: {
+    project: string;
     order_id: string;
-    payment_url: string;
+    amount: number;
+    total_payment: number;
+    fee: number;
+    received: number;
+    payment_method: string;
+    payment_number: string;
+    payment_url?: string;
+    expired_at: string;
+  };
+  // Fallback / legacy types just in case
+  status?: boolean | number | string;
+  message?: string;
+  data?: {
+    order_id?: string;
+    payment_url?: string;
     va_number?: string;
     qr_string?: string;
     expired_at?: string;
