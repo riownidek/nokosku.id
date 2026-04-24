@@ -1,197 +1,310 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { motion } from "framer-motion";
-import { useSession, signOut } from "next-auth/react";
+import { motion, AnimatePresence } from "framer-motion";
 import useSWR from "swr";
 import { toast } from "sonner";
-import Link from "next/link";
 import {
-  User, Shield, KeyRound, Mail, Gift, MessageCircle,
-  ChevronRight, Loader2, LogOut, Copy, CheckCircle2, Send,
+  Loader2, Smartphone, Globe, ChevronDown, Check,
 } from "lucide-react";
-import { formatRupiah } from "@/lib/utils";
+import { formatRupiah, applyMarkupSync } from "@/lib/utils";
 import { staggerContainer, staggerItem } from "@/components/motion";
+import { OTPResultCard } from "@/components/otp-result-card";
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command, CommandEmpty, CommandGroup, CommandInput,
+  CommandItem, CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-// ─── Section header ───────────────────────────────────────────────────────────
-function SectionHeader({ title }: { title: string }) {
-  return <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1 mb-1">{title}</p>;
+interface Service  { code: string; name: string; price: number; }
+interface Country  { id: number; code: string; name: string; }
+interface Operator { id: number; code: string; name: string; }
+interface ActiveOrder {
+  id: string; number: string; productName: string; cost: number; expiresAt: string;
 }
 
-// ─── Menu item ───────────────────────────────────────────────────────────────
-function MenuItem({ href, Icon, label, desc, danger }: {
-  href?: string; Icon: React.ElementType; label: string; desc?: string; danger?: boolean;
-}) {
-  const inner = (
-    <div className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-card border border-border hover:bg-muted/40 transition-colors ${danger ? "text-red-500" : ""}`}>
-      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${danger ? "bg-red-100" : "bg-primary/10"}`}>
-        <Icon className={`h-4.5 w-4.5 ${danger ? "text-red-500" : "text-primary"}`} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className={`text-sm font-bold ${danger ? "text-red-500" : "text-foreground"}`}>{label}</p>
-        {desc && <p className="text-xs text-muted-foreground">{desc}</p>}
-      </div>
-      <ChevronRight className="h-4 w-4 text-muted-foreground/50 shrink-0" />
-    </div>
+export default function OTPPage() {
+  const { data: servicesRaw, isLoading: loadingServices } = useSWR<Service[]>("/api/otp/services", fetcher);
+  const { data: config } = useSWR("/api/appconfig/public", fetcher, { revalidateOnFocus: false });
+  const markupPercent = parseFloat(config?.markup_percent ?? "0");
+
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [openService, setOpenService]     = useState(false);
+
+  const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
+  const [openCountry, setOpenCountry]         = useState(false);
+
+  const [selectedOperator, setSelectedOperator] = useState<Operator | null>(null);
+  const [openOperator, setOpenOperator]         = useState(false);
+
+  const [isBuying, setIsBuying] = useState(false);
+  const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null);
+
+  // Fetch countries when service selected
+  const { data: countries, isLoading: loadingCountries } = useSWR<Country[]>(
+    selectedService ? "/api/otp/countries" : null,
+    fetcher
   );
-  return href ? <Link href={href}>{inner}</Link> : <>{inner}</>;
-}
 
-// ─── Banding Dialog ───────────────────────────────────────────────────────────
-function BandingSection({ bandingPrice }: { bandingPrice: number }) {
-  const [open, setOpen] = useState(false);
-  const [number, setNumber] = useState("");
-  const [loading, setLoading] = useState(false);
+  // Fetch operators when country selected
+  const { data: operators, isLoading: loadingOperators } = useSWR<Operator[]>(
+    selectedService && selectedCountry ? `/api/otp/operators?country=${selectedCountry.code}` : null,
+    fetcher
+  );
 
-  const submit = async () => {
-    if (!number.trim()) { toast.error("Masukkan nomor WhatsApp"); return; }
-    setLoading(true);
+  const services = Array.isArray(servicesRaw) ? servicesRaw : [];
+
+  const totalCost = selectedService
+    ? applyMarkupSync(selectedService.price, markupPercent)
+    : 0;
+
+  const canBuy = !!(selectedService && selectedCountry && !isBuying);
+
+  const handleBuy = useCallback(async () => {
+    if (!canBuy || !selectedService || !selectedCountry) return;
+    setIsBuying(true);
     try {
-      const res = await fetch("/api/banding", {
+      const res = await fetch("/api/otp/buy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetNumber: number.trim() }),
+        body: JSON.stringify({
+          service:     selectedService.code,
+          country:     selectedCountry.code,
+          operator:    selectedOperator?.code,
+          serviceName: selectedService.name,
+        }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      toast.success(data.message);
-      setOpen(false);
-      setNumber("");
+      if (!res.ok) throw new Error(data.error ?? "Gagal membeli nomor OTP");
+
+      setActiveOrder({
+        id:          data.orderId,
+        number:      data.number,
+        productName: selectedService.name,
+        cost:        totalCost,
+        expiresAt:   data.expiresAt,
+      });
+      setSelectedService(null);
+      setSelectedCountry(null);
+      setSelectedOperator(null);
     } catch (err: any) {
       toast.error(err.message);
     } finally {
-      setLoading(false);
+      setIsBuying(false);
     }
-  };
-
-  return (
-    <div>
-      <button onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-3 px-4 py-3.5 rounded-2xl bg-card border border-border hover:bg-muted/40 transition-colors">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-green-100">
-          <MessageCircle className="h-4 w-4 text-green-600" />
-        </div>
-        <div className="flex-1 min-w-0 text-left">
-          <p className="text-sm font-bold text-foreground">Banding WhatsApp</p>
-          <p className="text-xs text-muted-foreground">Kirim banding ke WhatsApp Support · {formatRupiah(bandingPrice)}</p>
-        </div>
-        <ChevronRight className={`h-4 w-4 text-muted-foreground/50 transition-transform ${open ? "rotate-90" : ""}`} />
-      </button>
-
-      {open && (
-        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-          className="mt-2 rounded-2xl border border-border bg-card p-4 space-y-3">
-          <p className="text-sm font-semibold text-foreground">Nomor WhatsApp yang ingin dibanding</p>
-          <p className="text-xs text-muted-foreground">
-            Sistem akan mengirim pesan ke <span className="font-mono text-primary">support@support.whatsapp.com</span> atas nama nomor yang Anda masukkan.
-          </p>
-          <input
-            type="text" placeholder="628xxx..." value={number}
-            onChange={(e) => setNumber(e.target.value)}
-            className="w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
-          />
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Biaya: <span className="font-bold text-foreground">{formatRupiah(bandingPrice)}</span></span>
-          </div>
-          <button onClick={submit} disabled={loading}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-green-600 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-60 transition-colors">
-            {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Mengirim...</> : <><Send className="h-4 w-4" /> Kirim Banding</>}
-          </button>
-        </motion.div>
-      )}
-    </div>
-  );
-}
-
-// ─── Main Profile Page ────────────────────────────────────────────────────────
-export default function ProfilePage() {
-  const { data: session } = useSession();
-  const { data: profile } = useSWR("/api/profile", fetcher);
-  const { data: config } = useSWR("/api/appconfig/public", fetcher);
-  const [copied, setCopied] = useState(false);
-
-  const bandingPrice = parseFloat(config?.banding_price ?? "500");
-  const referralCode = profile?.referralCode ?? session?.user?.name ?? "—";
-
-  const copyReferral = useCallback(() => {
-    navigator.clipboard?.writeText(referralCode).then(() => {
-      setCopied(true); setTimeout(() => setCopied(false), 1500);
-    });
-  }, [referralCode]);
+  }, [canBuy, selectedService, selectedCountry, selectedOperator, totalCost]);
 
   return (
     <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="space-y-5 max-w-lg">
 
-      {/* Profile Card */}
-      <motion.div variants={staggerItem}
-        className="rounded-2xl bg-gradient-to-br from-primary to-violet-600 p-5 text-white">
-        <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-2xl font-black">
-            {(session?.user?.name?.[0] ?? "U").toUpperCase()}
+      {/* Header */}
+      <motion.div variants={staggerItem}>
+        <div className="flex items-center gap-3 mb-1">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
+            <Smartphone className="h-5 w-5 text-primary" />
           </div>
-          <div className="min-w-0">
-            <p className="font-black text-lg leading-tight truncate">{session?.user?.name ?? "Pengguna"}</p>
-            <p className="text-white/70 text-xs truncate">{session?.user?.email}</p>
-            <div className="mt-1.5 flex items-center gap-1.5">
-              <span className="rounded-lg bg-white/20 px-2 py-0.5 text-[10px] font-bold">
-                {(session?.user as any)?.role ?? "USER"}
-              </span>
-              <span className="text-white/60 text-xs">·</span>
-              <span className="text-xs font-semibold">{formatRupiah(profile?.balance ?? 0)}</span>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Referral chip */}
-      {referralCode !== "—" && (
-        <motion.div variants={staggerItem}
-          className="flex items-center justify-between rounded-2xl border border-border bg-card px-4 py-3">
           <div>
-            <p className="text-[10px] font-semibold text-muted-foreground">Kode Referral</p>
-            <p className="font-black text-foreground font-mono tracking-wider">{referralCode}</p>
+            <h1 className="text-xl font-black text-foreground">Jasa OTP</h1>
+            <p className="text-xs text-muted-foreground">Sewa nomor virtual untuk verifikasi</p>
           </div>
-          <button onClick={copyReferral}
-            className={`rounded-xl px-3 py-1.5 text-[11px] font-bold transition-all ${copied ? "bg-emerald-500 text-white" : "bg-primary/10 text-primary hover:bg-primary/20"}`}>
-            {copied ? <CheckCircle2 className="h-4 w-4 inline" /> : <Copy className="h-3.5 w-3.5 inline mr-1" />}
-            {copied ? "Disalin!" : "Salin"}
-          </button>
-        </motion.div>
-      )}
-
-      {/* Menu Groups */}
-      <motion.div variants={staggerItem} className="space-y-4">
-        <div className="space-y-2">
-          <SectionHeader title="Akun" />
-          <MenuItem href="/profile/edit" Icon={User} label="Profil Pengguna" desc="Nama, foto, informasi akun" />
-          <MenuItem href="/profile/security" Icon={Shield} label="Keamanan" desc="Sesi aktif & perangkat" />
-          <MenuItem href="/profile/reset-password" Icon={KeyRound} label="Reset Password" desc="Ubah kata sandi Anda" />
-          <MenuItem href="/profile/change-email" Icon={Mail} label="Ubah Email" desc="Ganti alamat email aktif" />
-        </div>
-
-        <div className="space-y-2">
-          <SectionHeader title="Referral" />
-          <MenuItem href="/profile/referral" Icon={Gift} label="Rincian Referral" desc="Komisi & daftar referral Anda" />
-        </div>
-
-        <div className="space-y-2">
-          <SectionHeader title="Fitur Premium" />
-          <BandingSection bandingPrice={bandingPrice} />
-        </div>
-
-        <div className="space-y-2">
-          <SectionHeader title="Sesi" />
-          <button onClick={() => signOut({ callbackUrl: "/" })}
-            className="flex w-full items-center gap-3 px-4 py-3.5 rounded-2xl bg-red-50 border border-red-200 hover:bg-red-100 transition-colors">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-100">
-              <LogOut className="h-4 w-4 text-red-500" />
-            </div>
-            <span className="text-sm font-bold text-red-500">Keluar</span>
-          </button>
         </div>
       </motion.div>
+
+      <AnimatePresence mode="wait">
+        {!activeOrder ? (
+          <motion.div
+            key="form"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ type: "spring", stiffness: 350, damping: 28 }}
+            className="rounded-2xl border border-border bg-card p-5 space-y-4"
+          >
+            {/* Service picker */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Layanan / Aplikasi</label>
+              <Popover open={openService} onOpenChange={setOpenService}>
+                <PopoverTrigger asChild>
+                  <motion.button
+                    whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                    className="flex w-full items-center justify-between rounded-xl border border-input bg-background px-4 py-3 text-sm font-medium hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+                    disabled={loadingServices}
+                  >
+                    {loadingServices ? (
+                      <span className="text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Memuat layanan...</span>
+                    ) : selectedService ? (
+                      <span className="font-semibold">{selectedService.name} — {formatRupiah(applyMarkupSync(selectedService.price, markupPercent))}</span>
+                    ) : (
+                      <span className="text-muted-foreground">Pilih layanan (contoh: WhatsApp)...</span>
+                    )}
+                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                  </motion.button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0 rounded-xl shadow-xl" align="start">
+                  <Command>
+                    <CommandInput placeholder="Cari layanan..." />
+                    <CommandList>
+                      <CommandEmpty>Layanan tidak ditemukan.</CommandEmpty>
+                      <CommandGroup>
+                        {services.map((svc) => (
+                          <CommandItem key={svc.code} value={svc.name} onSelect={() => { setSelectedService(svc); setSelectedCountry(null); setSelectedOperator(null); setOpenService(false); }}>
+                            <Check className={cn("mr-2 h-4 w-4", selectedService?.code === svc.code ? "opacity-100 text-primary" : "opacity-0")} />
+                            <div className="flex flex-1 items-center justify-between">
+                              <span>{svc.name}</span>
+                              <span className="text-muted-foreground text-xs font-semibold">{formatRupiah(applyMarkupSync(svc.price, markupPercent))}</span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Country picker */}
+            {selectedService && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Negara Server</label>
+                <Popover open={openCountry} onOpenChange={setOpenCountry}>
+                  <PopoverTrigger asChild>
+                    <motion.button
+                      whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                      className="flex w-full items-center justify-between rounded-xl border border-input bg-background px-4 py-3 text-sm font-medium hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+                      disabled={loadingCountries}
+                    >
+                      {loadingCountries ? (
+                        <span className="text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Memuat negara...</span>
+                      ) : selectedCountry ? (
+                        <span className="font-semibold">{selectedCountry.name}</span>
+                      ) : (
+                        <span className="text-muted-foreground">Pilih negara (contoh: Indonesia)...</span>
+                      )}
+                      <Globe className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                    </motion.button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0 rounded-xl shadow-xl" align="start">
+                    <Command>
+                      <CommandInput placeholder="Cari negara..." />
+                      <CommandList>
+                        <CommandEmpty>Negara tidak ditemukan.</CommandEmpty>
+                        <CommandGroup>
+                          {(countries ?? []).map((c) => (
+                            <CommandItem key={c.code} value={c.name} onSelect={() => { setSelectedCountry(c); setSelectedOperator(null); setOpenCountry(false); }}>
+                              <Check className={cn("mr-2 h-4 w-4", selectedCountry?.code === c.code ? "opacity-100 text-primary" : "opacity-0")} />
+                              {c.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+
+            {/* Operator picker (optional) */}
+            {selectedService && selectedCountry && operators && operators.length > 0 && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Operator <span className="text-muted-foreground">(opsional)</span></label>
+                <Popover open={openOperator} onOpenChange={setOpenOperator}>
+                  <PopoverTrigger asChild>
+                    <motion.button
+                      whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                      className="flex w-full items-center justify-between rounded-xl border border-input bg-background px-4 py-3 text-sm font-medium hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+                      disabled={loadingOperators}
+                    >
+                      {loadingOperators ? (
+                        <span className="text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Memuat operator...</span>
+                      ) : selectedOperator ? (
+                        <span className="font-semibold">{selectedOperator.name}</span>
+                      ) : (
+                        <span className="text-muted-foreground">Pilih operator (opsional)...</span>
+                      )}
+                      <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                    </motion.button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0 rounded-xl shadow-xl" align="start">
+                    <Command>
+                      <CommandInput placeholder="Cari operator..." />
+                      <CommandList>
+                        <CommandEmpty>Operator tidak ditemukan.</CommandEmpty>
+                        <CommandGroup>
+                          {operators.map((op) => (
+                            <CommandItem key={op.code} value={op.name} onSelect={() => { setSelectedOperator(op); setOpenOperator(false); }}>
+                              <Check className={cn("mr-2 h-4 w-4", selectedOperator?.code === op.code ? "opacity-100 text-primary" : "opacity-0")} />
+                              {op.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+
+            {/* Order summary */}
+            <AnimatePresence>
+              {selectedService && totalCost > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                  className="overflow-hidden"
+                >
+                  <div className="rounded-xl bg-primary/5 border border-primary/15 p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Total yang dibayar</span>
+                      <span className="text-xl font-black text-primary">{formatRupiah(totalCost)}</span>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Buy button */}
+            <motion.button
+              onClick={handleBuy}
+              disabled={!canBuy}
+              whileHover={canBuy ? { scale: 1.02 } : {}}
+              whileTap={canBuy ? { scale: 0.96 } : {}}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {isBuying ? <><Loader2 className="h-4 w-4 animate-spin" /> Memproses...</> : "Pesan Nomor Sekarang"}
+            </motion.button>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="order-result"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 350, damping: 28 }}
+            className="max-w-md"
+          >
+            <OTPResultCard
+              orderId={activeOrder.id}
+              number={activeOrder.number}
+              productName={activeOrder.productName}
+              cost={activeOrder.cost}
+              expiresAt={activeOrder.expiresAt}
+              onCancel={() => setActiveOrder(null)}
+              onComplete={() => setActiveOrder(null)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
