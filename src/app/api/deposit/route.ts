@@ -95,7 +95,6 @@ export async function POST(req: Request) {
     let vaNumber:   string | undefined;
     let qrUrl:      string | undefined;
     let instruction: string | undefined;
-    let isMock = false;
 
     const pakasirMethod = getPakasirMethod(method);
 
@@ -126,13 +125,7 @@ export async function POST(req: Request) {
       vaNumber   = pakasirRes.data?.va_number ?? undefined;
       qrUrl      = pakasirRes.data?.qr_string ?? undefined;
 
-      // Deteksi mock mode (pakasir_api_key belum diisi di DB)
-      if (pakasirRes.message?.includes("MOCK")) {
-        isMock = true;
-        console.warn(`${TAG} MOCK mode aktif — isi pakasir_api_key di Panel Admin → App Config!`);
-      }
-
-      console.log(`${TAG} Pakasir OK | paymentUrl=${!!paymentUrl} qrUrl=${!!qrUrl} vaNumber=${!!vaNumber} mock=${isMock}`);
+      console.log(`${TAG} Pakasir OK | paymentUrl=${!!paymentUrl} qrUrl=${!!qrUrl} vaNumber=${!!vaNumber}`);
     } else {
       // ── Alur Manual/Crypto ───────────────────────────────────────────────────
       // Gunakan instruction dari DB sebagai panduan, bukan href
@@ -158,14 +151,13 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       orderId,
-      paymentUrl,   // URL gateway Pakasir (http/https) — ditampilkan sebagai <a href>
-      vaNumber,     // Nomor VA — ditampilkan sebagai teks besar
-      qrUrl,        // QR string — di-render oleh react-qr-code, bukan <img src>
-      instruction,  // Teks instruksi manual — BUKAN URL, tampilkan sebagai <p>
+      paymentUrl,
+      vaNumber,
+      qrUrl,
+      instruction,
       method: paymentMethodRecord.name,
       category: paymentMethodRecord.category,
       adminFee: Math.ceil(amount * paymentMethodRecord.adminFeePercent / 100),
-      isMock,
     });
 
   } catch (error: any) {

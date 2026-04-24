@@ -30,19 +30,28 @@ async function getPakasirCredentials(): Promise<{ apiKey: string; project: strin
       prisma.appConfig.findFirst({ where: { key: "pakasir_api_key" } }),
       prisma.appConfig.findFirst({ where: { key: "pakasir_project" } }),
     ]);
-
-    _cachedApiKey   = keyConfig?.value?.trim()     ?? "";
-    _cachedProject  = projectConfig?.value?.trim()  ?? "";
+    _cachedApiKey  = keyConfig?.value?.trim()    ?? "";
+    _cachedProject = projectConfig?.value?.trim() ?? "";
     _cacheTime = now;
-
-    if (!_cachedApiKey)   console.warn(`${TAG} ⚠️  AppConfig 'pakasir_api_key' kosong — transaksi akan gagal!`);
-    if (!_cachedProject)  console.warn(`${TAG} ⚠️  AppConfig 'pakasir_project' kosong — transaksi akan gagal!`);
   } catch (err) {
     console.error(`${TAG} Gagal membaca credentials dari DB:`, err);
-    _cachedApiKey  = "";
-    _cachedProject = "";
+    throw new Error("Gagal membaca konfigurasi Pakasir dari database. Periksa koneksi DB.");
   }
 
+  if (!_cachedApiKey) {
+    throw new Error(
+      "API Key Pakasir belum dikonfigurasi. " +
+      "Masuk Panel Admin → App Config → isi nilai untuk 'pakasir_api_key'."
+    );
+  }
+  if (!_cachedProject) {
+    throw new Error(
+      "Kode Project Pakasir belum dikonfigurasi. " +
+      "Masuk Panel Admin → App Config → isi nilai untuk 'pakasir_project'."
+    );
+  }
+
+  console.log(`${TAG} Credentials berhasil dimuat dari AppConfig.`);
   return { apiKey: _cachedApiKey, project: _cachedProject };
 }
 
@@ -95,7 +104,8 @@ export const PAKASIR_PAYMENT_METHODS = [
 ] as const;
 
 /**
- * Buat transaksi deposit di Pakasir
+ * Buat transaksi deposit di Pakasir.
+ * Throws jika API key tidak dikonfigurasi atau Pakasir mengembalikan error.
  */
 export async function createPakasirDeposit(
   method: PakasirMethod,
@@ -103,22 +113,8 @@ export async function createPakasirDeposit(
   amount: number,
   extra?: { customerName?: string; customerEmail?: string }
 ): Promise<PakasirCreateResponse> {
+  // Akan throw jika key kosong atau DB error
   const { apiKey, project } = await getPakasirCredentials();
-
-  // Mock mode jika key belum dikonfigurasi admin
-  if (!apiKey || apiKey === "MOCK") {
-    console.log(`${TAG} [MOCK] Create: ${method} | orderId=${orderId} | amount=${amount}`);
-    return {
-      status: true,
-      message: "Success (MOCK — isi pakasir_api_key di AppConfig untuk live)",
-      data: {
-        order_id: orderId,
-        payment_url: "https://mock.pakasir.com/pay",
-        va_number: method.includes("va") ? "88" + Math.floor(Math.random() * 100000) : undefined,
-        qr_string: method === "qris" ? "00020101021226590014ID.CO.QRIS.WWW011936009014000400115302360540" + amount + "5802ID5920NOKOSMU STORE6013JAKARTA6304ABCD" : undefined,
-      },
-    } as any;
-  }
 
   const payload: PakasirCreatePayload = {
     project,
@@ -133,39 +129,54 @@ export async function createPakasirDeposit(
 
   console.log(`${TAG} Creating deposit: ${method} | orderId=${orderId} | amount=${amount}`);
 
-  const res = await fetch(`${PAKASIR_BASE}/transactioncreate/${method}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "(no body)");
-    console.error(`${TAG} API Error ${res.status}: ${errText}`);
-    throw new Error(`Pakasir API error: ${res.status} ${res.statusText}`);
+  let res: Response;
+  try {
+    res = await fetch(`${PAKASIR_BASE}/transactioncreate/${method}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch (networkErr: any) {
+    console.error(`${TAG} Network error:`, networkErr?.message);
+    throw new Error(`Pakasir tidak dapat dihubungi: ${networkErr?.message ?? "Network error"}`);
   }
 
-  const data = await res.json();
-  console.log(`${TAG} Response: ${JSON.stringify(data).substring(0, 300)}`);
+  if (!res.ok) {
+    let errBody = "(no body)";
+    try { errBody = await res.text(); } catch {}
+    const errMsg = `Pakasir API Error [${res.status} ${res.statusText}]: ${errBody}`;
+    console.error(`${TAG} ${errMsg}`);
+    throw new Error(errMsg);
+  }
+
+  const data: PakasirCreateResponse = await res.json();
+  console.log(`${TAG} Response: status=${data.status} msg=${data.message}`);
   return data;
 }
 
 /**
- * Verifikasi status transaksi di Pakasir (cross-check webhook sebelum update saldo)
+ * Verifikasi status transaksi di Pakasir (cross-check webhook sebelum update saldo).
+ * Throws jika API key tidak dikonfigurasi atau Pakasir mengembalikan error.
  */
 export async function verifyPakasirTransaction(orderId: string): Promise<PakasirCheckResponse> {
   const { apiKey, project } = await getPakasirCredentials();
 
-  if (!apiKey || apiKey === "MOCK") {
-    return { status: true, data: { order_id: orderId, amount: 10000, status: "success" } };
+  let res: Response;
+  try {
+    res = await fetch(`${PAKASIR_BASE}/transactioncheck`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project, order_id: orderId, api_key: apiKey }),
+    });
+  } catch (networkErr: any) {
+    throw new Error(`Pakasir verify tidak dapat dihubungi: ${networkErr?.message ?? "Network error"}`);
   }
 
-  const res = await fetch(`${PAKASIR_BASE}/transactioncheck`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ project, order_id: orderId, api_key: apiKey }),
-  });
+  if (!res.ok) {
+    let errBody = "(no body)";
+    try { errBody = await res.text(); } catch {}
+    throw new Error(`Pakasir verify Error [${res.status} ${res.statusText}]: ${errBody}`);
+  }
 
-  if (!res.ok) throw new Error(`Pakasir verify error: ${res.status}`);
   return res.json();
 }

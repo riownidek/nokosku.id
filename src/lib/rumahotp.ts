@@ -27,15 +27,19 @@ async function getApiKey(): Promise<string> {
     });
     _cachedKey = config?.value?.trim() ?? "";
     _cacheTime = now;
-    if (!_cachedKey) {
-      console.warn(`${TAG} AppConfig 'rumahotp_api_key' kosong atau belum diisi admin.`);
-    } else {
-      console.log(`${TAG} API key berhasil dimuat dari AppConfig.`);
-    }
   } catch (err) {
-    console.error(`${TAG} Gagal membaca API key dari DB:`, err);
-    _cachedKey = "";
+    console.error(`${TAG} Gagal membaca rumahotp_api_key dari DB:`, err);
+    throw new Error("Gagal membaca API key RumahOTP dari database. Periksa koneksi DB.");
   }
+
+  if (!_cachedKey) {
+    throw new Error(
+      "API Key RumahOTP belum dikonfigurasi. " +
+      "Masuk Panel Admin → App Config → isi nilai untuk 'rumahotp_api_key'."
+    );
+  }
+
+  console.log(`${TAG} API key berhasil dimuat dari AppConfig.`);
   return _cachedKey;
 }
 
@@ -69,22 +73,8 @@ async function fetchWithTimeout(
 export const rateLimitDelay = () => new Promise((r) => setTimeout(r, 2000));
 
 async function apiFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  // getApiKey() akan throw jika key kosong atau DB error — tidak ada mock
   const apiKey = await getApiKey();
-
-  // ── Mock mode: API key kosong atau belum dikonfigurasi ─────────────────────
-  if (!apiKey || apiKey === "MOCK" || apiKey === "undefined") {
-    console.warn(`${TAG} No API key — using mock response for ${endpoint}`);
-    if (endpoint.includes("/services")) return [{ name: "WhatsApp", code: "wa", price: 1000 }] as any;
-    if (endpoint.includes("/countries")) return [{ id: 1, name: "Indonesia", code: "id" }] as any;
-    if (endpoint.includes("/operators")) return [{ id: 1, name: "Telkomsel", code: "tsel" }] as any;
-    if (endpoint.includes("/get_status")) return { id: "123", number: "081234567890", status: "success", sms: "Your OTP is 998877" } as any;
-    if (endpoint.includes("/set_status")) return { success: true } as any;
-    if (endpoint === "/v2/orders") return { id: "123-" + Date.now(), number: "081234" + Math.floor(Math.random() * 100000), status: "active", price: 1000 } as any;
-    if (endpoint.includes("/h2h/product")) return [{ product_code: "PULSA10", product_name: "Pulsa 10k", category: "PULSA", price: 10500 }] as any;
-    if (endpoint.includes("/h2h/transaksi/create")) return { trx_id: "trx-" + Date.now(), status: "success", sn: "SN-123456", price: 10500 } as any;
-    if (endpoint.includes("/balance")) return { balance: 999999 } as any;
-    return {} as any;
-  }
 
   const url = `${BASE_URL}${endpoint}`;
   console.log(`${TAG} Request: ${options?.method ?? "GET"} ${endpoint}`);
@@ -97,7 +87,7 @@ async function apiFetch<T>(endpoint: string, options?: RequestInit): Promise<T> 
   if (!res.ok) {
     let errBody = "(no body)";
     try { errBody = await res.text(); } catch {}
-    const errMsg = `RumahOTP API Error [${res.status}] ${endpoint}: ${errBody}`;
+    const errMsg = `RumahOTP API Error [${res.status} ${res.statusText}] ${endpoint}: ${errBody}`;
     console.error(`${TAG} ${errMsg}`);
     throw new Error(errMsg);
   }

@@ -311,16 +311,6 @@ function Step4Payment({ result, amount, method, onReset }: {
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
       className="space-y-4">
-      {/* Mock mode warning */}
-      {result?.isMock && (
-        <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-300 p-3">
-          <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-          <p className="text-xs text-amber-800 font-semibold">
-            ⚠️ Mode Demo — QR ini tidak valid untuk pembayaran nyata. Masuk Panel Admin → App Config dan isi <code className="font-mono text-amber-900">pakasir_api_key</code> & <code className="font-mono text-amber-900">pakasir_project</code> untuk mengaktifkan gateway.
-          </p>
-        </div>
-      )}
-
       {/* Info banner */}
       <div className="flex items-start gap-2 rounded-xl bg-blue-50 border border-blue-200 p-3">
         <Info className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
