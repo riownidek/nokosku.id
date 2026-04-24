@@ -82,12 +82,15 @@ export default function OTPPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Gagal membeli nomor OTP");
 
+      const ord = data.order;
+      if (!ord?.id || !ord?.number) throw new Error("Respons API tidak valid. Saldo Anda tidak terpotong.");
+
       setActiveOrder({
-        id:          data.orderId,
-        number:      data.number,
+        id:          ord.id,
+        number:      ord.number,
         productName: selectedService.name,
         cost:        totalCost,
-        expiresAt:   data.expiresAt,
+        expiresAt:   ord.expiresAt ?? new Date(Date.now() + 5 * 60 * 1000).toISOString(),
       });
       setSelectedService(null);
       setSelectedCountry(null);

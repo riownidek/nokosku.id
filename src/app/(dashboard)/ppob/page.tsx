@@ -27,6 +27,10 @@ export default function PPOBPage() {
   const [target, setTarget] = useState("");
   const [isBuying, setIsBuying] = useState(false);
 
+  // Safely normalize SWR data — API might return {error: '...'} if RumahOTP key is invalid
+  const productList: any[] = Array.isArray(products) ? products : [];
+  const apiError: string | undefined = !Array.isArray(products) && products ? (products as any).error : undefined;
+
   const handleBuy = async () => {
     if (!selectedProduct || !target) return;
     setIsBuying(true);
@@ -124,6 +128,10 @@ export default function PPOBPage() {
                         <span className="font-semibold">{selectedProduct.product_name}</span>
                         <span className="text-primary font-bold text-sm">{formatRupiah(selectedProduct.displayPrice)}</span>
                       </div>
+                    ) : apiError ? (
+                      <span className="text-red-500 text-xs">{apiError}</span>
+                    ) : productList.length === 0 && !isLoading ? (
+                      <span className="text-muted-foreground">Produk belum tersedia untuk kategori ini</span>
                     ) : <span className="text-muted-foreground">Pilih produk...</span>}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
                   </motion.button>
@@ -134,7 +142,7 @@ export default function PPOBPage() {
                     <CommandList>
                       <CommandEmpty>Produk tidak ditemukan.</CommandEmpty>
                       <CommandGroup>
-                        {products?.map((p: any) => (
+                        {productList.map((p: any) => (
                           <CommandItem key={p.product_code} value={p.product_name} onSelect={() => { setSelectedProduct(p); setOpenProduct(false); }}>
                             <Check className={cn("mr-2 h-4 w-4 shrink-0", selectedProduct?.product_code === p.product_code ? "opacity-100 text-primary" : "opacity-0")} />
                             <div className="flex w-full items-center justify-between">
