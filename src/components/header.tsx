@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { Bell, ChevronDown, LogOut, LayoutDashboard, Wallet, Plus } from "lucide-react";
+import { Bell, ChevronDown, LogOut, LayoutDashboard, Wallet, Plus, ShieldCheck } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import useSWR from "swr";
@@ -152,6 +152,17 @@ export function Header() {
                   >
                     <Wallet className="h-4 w-4" /> Isi Saldo
                   </Link>
+                  {/* Panel Admin — hanya tampil jika role ADMIN */}
+                  {(session?.user as any)?.role === "ADMIN" && (
+                    <Link
+                      href="/admin"
+                      onClick={() => setDropdownOpen(false)}
+                      className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-semibold hover:bg-primary/10 transition-colors"
+                      style={{ color: "#4F46E5" }}
+                    >
+                      <ShieldCheck className="h-4 w-4" /> Panel Admin
+                    </Link>
+                  )}
                   <button
                     onClick={() => signOut({ callbackUrl: "/login" })}
                     className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors"
