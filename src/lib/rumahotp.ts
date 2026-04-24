@@ -113,9 +113,37 @@ export interface OTPOrder {
   expires_at?: string;
 }
 
-export async function getOTPServices(): Promise<OTPService[]> { return apiFetch<OTPService[]>("/v2/services"); }
-export async function getOTPCountries(): Promise<OTPCountry[]> { return apiFetch<OTPCountry[]>("/v2/countries"); }
-export async function getOTPOperators(country: string): Promise<OTPOperator[]> { return apiFetch<OTPOperator[]>(`/v2/operators?country=${country}`); }
+function normalizeArray<T>(raw: unknown, context: string): T[] {
+  if (Array.isArray(raw)) return raw as T[];
+  if (raw && typeof raw === "object") {
+    const obj = raw as Record<string, unknown>;
+    if (Array.isArray(obj.data)) return obj.data as T[];
+    if (Array.isArray(obj.services)) return obj.services as T[];
+    if (Array.isArray(obj.countries)) return obj.countries as T[];
+    if (Array.isArray(obj.operators)) return obj.operators as T[];
+    if (Array.isArray(obj.products)) return obj.products as T[];
+    if (obj.message || obj.error) {
+      throw new Error(`RumahOTP ${context} error: ${obj.message ?? obj.error}`);
+    }
+  }
+  console.error(`[RumahOTP] ${context}: unexpected response shape:`, raw);
+  return [];
+}
+
+export async function getOTPServices(): Promise<OTPService[]> {
+  const raw = await apiFetch<unknown>("/v2/services");
+  return normalizeArray<OTPService>(raw, "getOTPServices");
+}
+
+export async function getOTPCountries(): Promise<OTPCountry[]> {
+  const raw = await apiFetch<unknown>("/v2/countries");
+  return normalizeArray<OTPCountry>(raw, "getOTPCountries");
+}
+
+export async function getOTPOperators(country: string): Promise<OTPOperator[]> {
+  const raw = await apiFetch<unknown>(`/v2/operators?country=${country}`);
+  return normalizeArray<OTPOperator>(raw, "getOTPOperators");
+}
 
 export async function buyOTPNumber(params: { service: string; country: string; operator?: string; }): Promise<OTPOrder> {
   return apiFetch<OTPOrder>("/v2/orders", { method: "POST", body: JSON.stringify(params) });
@@ -153,7 +181,8 @@ export interface H2HOrderResponse {
 
 export async function getH2HProducts(category?: string): Promise<H2HProduct[]> {
   const query = category ? `?category=${category}` : "";
-  return apiFetch<H2HProduct[]>(`/v1/h2h/product${query}`);
+  const raw = await apiFetch<unknown>(`/v1/h2h/product${query}`);
+  return normalizeArray<H2HProduct>(raw, "getH2HProducts");
 }
 
 export async function createH2HOrder(params: { product_code: string; target: string; ref_id: string; }): Promise<H2HOrderResponse> {
