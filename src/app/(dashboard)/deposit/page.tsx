@@ -270,14 +270,35 @@ function Step4Payment({ result, amount, method, onReset }: {
   result: any; amount: number; method: any; onReset: () => void;
 }) {
   const [checking, setChecking] = useState(false);
+  const [checkStatus, setCheckStatus] = useState<"idle"|"pending"|"success"|"failed">("idle");
   const adminFee = Math.ceil(amount * (method?.adminFeePercent ?? 0) / 100);
   const total = amount + adminFee;
 
+
+
   const handleCheck = async () => {
+    if (!result?.orderId) { toast.info("Order ID tidak ditemukan."); return; }
     setChecking(true);
-    await new Promise((r) => setTimeout(r, 3000));
-    setChecking(false);
-    toast.info("Sedang menunggu konfirmasi pembayaran...");
+    setCheckStatus("pending");
+    try {
+      const res = await fetch(`/api/deposit/check?orderId=${result.orderId}`);
+      const data = await res.json();
+      if (data.status === "SUCCESS") {
+        setCheckStatus("success");
+        toast.success("Pembayaran berhasil dikonfirmasi! Saldo segera ditambahkan.");
+      } else if (data.status === "FAILED") {
+        setCheckStatus("failed");
+        toast.error("Pembayaran gagal atau expired.");
+      } else {
+        setCheckStatus("idle");
+        toast.info("Pembayaran belum terkonfirmasi. Harap tunggu beberapa saat.");
+      }
+    } catch {
+      setCheckStatus("idle");
+      toast.error("Gagal menghubungi server. Coba lagi.");
+    } finally {
+      setChecking(false);
+    }
   };
 
   // ── Tentukan tipe konten yang ditampilkan ─────────────────────────────────
@@ -290,6 +311,16 @@ function Step4Payment({ result, amount, method, onReset }: {
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
       className="space-y-4">
+      {/* Mock mode warning */}
+      {result?.isMock && (
+        <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-300 p-3">
+          <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+          <p className="text-xs text-amber-800 font-semibold">
+            ⚠️ Mode Demo — QR ini tidak valid untuk pembayaran nyata. Masuk Panel Admin → App Config dan isi <code className="font-mono text-amber-900">pakasir_api_key</code> & <code className="font-mono text-amber-900">pakasir_project</code> untuk mengaktifkan gateway.
+          </p>
+        </div>
+      )}
+
       {/* Info banner */}
       <div className="flex items-start gap-2 rounded-xl bg-blue-50 border border-blue-200 p-3">
         <Info className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
@@ -372,10 +403,13 @@ function Step4Payment({ result, amount, method, onReset }: {
       </div>
 
       {/* Check payment */}
-      <button onClick={handleCheck} disabled={checking}
-        className="flex w-full items-center justify-center gap-2 rounded-xl border border-border py-3 text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors disabled:opacity-60">
+      <button onClick={handleCheck} disabled={checking || checkStatus === "success"}
+        className={`flex w-full items-center justify-center gap-2 rounded-xl border py-3 text-sm font-semibold transition-colors disabled:opacity-60
+          ${checkStatus === "success" ? "border-emerald-300 bg-emerald-50 text-emerald-700" : checkStatus === "failed" ? "border-red-300 bg-red-50 text-red-600" : "border-border text-muted-foreground hover:bg-muted"}`}>
         {checking
           ? <><Loader2 className="h-4 w-4 animate-spin" /> Mengecek pembayaran...</>
+          : checkStatus === "success" ? <><CheckCircle2 className="h-4 w-4" /> Pembayaran Dikonfirmasi!</>
+          : checkStatus === "failed" ? <>❌ Pembayaran Gagal/Expired</>
           : <><RefreshCw className="h-4 w-4" /> Mengecek pembayaran</>}
       </button>
       <p className="text-center text-[10px] text-muted-foreground">
