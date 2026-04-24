@@ -7,7 +7,7 @@ import { formatRupiah } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Loader2, Users, TrendingUp, Receipt, ShieldCheck, ShieldBan,
-  Edit2, Key, Image, Bell, History, Plus, Minus, Search, RefreshCw,
+  Edit2, Key, Image, Bell, History, Plus, Minus, Search, RefreshCw, Mail
 } from "lucide-react";
 import { toast } from "sonner";
 import { staggerContainer, staggerItem } from "@/components/motion";
@@ -169,6 +169,8 @@ export default function AdminPage() {
     { key: "popup_title", label: "Judul Popup Pengumuman", group: "popup", placeholder: "Judul pengumuman..." },
     { key: "popup_content", label: "Isi Popup Pengumuman", group: "popup", placeholder: "Isi pengumuman..." },
     { key: "popup_active", label: "Aktifkan Popup? (true/false)", group: "popup", placeholder: "true" },
+    { key: "google_email", label: "Google Email (SMTP)", group: "smtp", placeholder: "email@gmail.com" },
+    { key: "google_app_password", label: "Google App Password", group: "smtp", placeholder: "16 digit sandi aplikasi..." },
   ];
 
   return (
@@ -422,6 +424,7 @@ export default function AdminPage() {
           <TabsContent value="appconfig" className="space-y-6">
             {[
               { group: "api", label: "API Keys", icon: Key, fields: configFields.filter((f) => f.group === "api") },
+              { group: "smtp", label: "Konfigurasi SMTP Email", icon: Mail, fields: configFields.filter((f) => f.group === "smtp") },
               { group: "visual", label: "Manajemen Banner", icon: Image, fields: configFields.filter((f) => f.group === "visual") },
               { group: "popup", label: "Popup Pengumuman", icon: Bell, fields: configFields.filter((f) => f.group === "popup") },
             ].map((section) => (
