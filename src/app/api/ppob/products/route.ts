@@ -61,8 +61,7 @@ export async function GET(req: Request) {
 
   // 4. Panggil RumahOTP API secara langsung (bypass lib agar log lebih jelas)
   try {
-    const query = category ? `?category=${category}` : "";
-    const rumahOTPUrl = `https://www.rumahotp.io/api/v1/h2h/product${query}`;
+    const rumahOTPUrl = `https://www.rumahotp.io/api/v1/h2h/product`;
     console.log("=== [PPOB] Memanggil RumahOTP URL:", rumahOTPUrl, "===");
 
     const controller = new AbortController();
@@ -121,6 +120,14 @@ export async function GET(req: Request) {
     }
 
     console.log("=== [PPOB] Jumlah produk diterima:", products.length, "===");
+
+    // Lakukan filtering in-memory karena API RumahOTP statis
+    if (category) {
+      products = products.filter((p: any) => 
+        p?.category?.toUpperCase() === category.toUpperCase()
+      );
+      console.log(`=== [PPOB] Jumlah produk setelah filter (${category}):`, products.length, "===");
+    }
 
     const withMarkup = products.map((p: any) => ({
       ...p,

@@ -188,10 +188,9 @@ export interface H2HOrderResponse {
   message?: string;
 }
 
-export async function getH2HProducts(category?: string): Promise<H2HProduct[]> {
-  // Endpoint valid: /v1/h2h/product (sesuai pola endpoint H2H lainnya)
-  const query = category ? `?category=${category}` : "";
-  const raw = await apiFetch<unknown>(`/v1/h2h/product${query}`);
+export async function getH2HProducts(): Promise<H2HProduct[]> {
+  // Endpoint valid: /v1/h2h/product (sesuai pola endpoint H2H lainnya, tanpa query params)
+  const raw = await apiFetch<unknown>(`/v1/h2h/product`);
   return normalizeArray<H2HProduct>(raw, "getH2HProducts");
 }
 

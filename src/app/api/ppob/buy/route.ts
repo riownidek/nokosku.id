@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     let product: { product_code: string; product_name: string; price: number } | undefined;
     try {
       await rateLimitDelay();
-      const products = await getH2HProducts(category);
+      const products = await getH2HProducts();
       product = products.find((p) => p.product_code === productCode);
     } catch (apiErr: any) {
       const isTimeout = apiErr?.message?.includes("timeout");
