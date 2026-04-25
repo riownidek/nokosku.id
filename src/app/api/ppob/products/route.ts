@@ -25,8 +25,8 @@ export async function GET(req: Request) {
     }));
 
     return NextResponse.json(withMarkup);
-  } catch (error) {
-    console.error("[PPOB Products]", error);
+  } catch (error: any) {
+    console.error("RUMAHOTP FATAL ERROR:", error.response?.data || error.message || error);
     return NextResponse.json({ error: "Gagal mengambil daftar produk PPOB" }, { status: 500 });
   }
 }

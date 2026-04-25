@@ -35,7 +35,7 @@ export async function POST(req: Request) {
   try {
     // ── Cari transaksi di DB ─────────────────────────────────────────────────
     const transaction = await prisma.transaction.findFirst({
-      where: { gatewayReference: order_id },
+      where: { gatewayReference: { equals: order_id, mode: "insensitive" } },
       include: { user: { select: { id: true, name: true, email: true, referredBy: true } } },
     });
 
@@ -63,11 +63,11 @@ export async function POST(req: Request) {
     }
 
     // Jika pembayaran failed/expired → tandai FAILED
-    const verifyStatus = verified.data?.status?.toLowerCase() ?? "";
-    const isSuccess = ["success", "completed", "paid", "settled"].includes(verifyStatus);
-    const isFailed = ["failed", "expired", "canceled", "cancelled"].includes(verifyStatus);
+    const verifyStatusStr = String(verified.data?.status || verified?.status || status || "").toLowerCase();
+    const isSuccess = ["success", "completed", "paid", "settled", "true"].includes(verifyStatusStr);
+    const isFailed = ["failed", "expired", "canceled", "cancelled", "false"].includes(verifyStatusStr);
 
-    if (!verified.status || !isSuccess) {
+    if (!isSuccess) {
       if (isFailed) {
         try {
           await prisma.transaction.update({
@@ -79,7 +79,7 @@ export async function POST(req: Request) {
           console.error(`${TAG} DB update FAILED error:`, dbErr);
         }
       }
-      return NextResponse.json({ received: true, payment_status: verifyStatus || "unconfirmed" });
+      return NextResponse.json({ received: true, payment_status: verifyStatusStr || "unconfirmed" });
     }
 
     // ── Pembayaran sukses — update saldo secara atomik ───────────────────────

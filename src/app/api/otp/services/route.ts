@@ -17,11 +17,18 @@ export async function GET() {
 
     const services = await getOTPServices();
 
-    const withMarkup = services.map((s) => ({
-      ...s,
-      displayPrice: applyMarkupSync(s.price, markupPercent),
-      basePrice: s.price,
-    }));
+    const withMarkup = services.map((s: any) => {
+      const rawPrice = Number(s.price ?? s.rate ?? s.cost ?? 0);
+      const serviceId = s.code ?? s.id ?? s.service_id ?? "";
+      
+      return {
+        ...s,
+        code: String(serviceId),
+        price: rawPrice,
+        displayPrice: applyMarkupSync(rawPrice, markupPercent),
+        basePrice: rawPrice,
+      };
+    });
 
     return NextResponse.json(withMarkup);
   } catch (error) {

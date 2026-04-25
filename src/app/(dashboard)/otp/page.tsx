@@ -199,12 +199,14 @@ export default function OTPPage() {
                       <CommandList>
                         <CommandEmpty>Negara tidak ditemukan.</CommandEmpty>
                         <CommandGroup>
-                          {(countries ?? []).map((c) => (
-                            <CommandItem key={c.code} value={c.name} onSelect={() => { setSelectedCountry(c); setSelectedOperator(null); setOpenCountry(false); }}>
+                          {Array.isArray(countries) ? countries.map((c) => (
+                            <CommandItem key={c.code || c.id} value={c.name} onSelect={() => { setSelectedCountry(c); setSelectedOperator(null); setOpenCountry(false); }}>
                               <Check className={cn("mr-2 h-4 w-4", selectedCountry?.code === c.code ? "opacity-100 text-primary" : "opacity-0")} />
                               {c.name}
                             </CommandItem>
-                          ))}
+                          )) : (
+                            <CommandItem disabled>Data tidak tersedia</CommandItem>
+                          )}
                         </CommandGroup>
                       </CommandList>
                     </Command>
@@ -241,12 +243,14 @@ export default function OTPPage() {
                       <CommandList>
                         <CommandEmpty>Operator tidak ditemukan.</CommandEmpty>
                         <CommandGroup>
-                          {operators.map((op) => (
-                            <CommandItem key={op.code} value={op.name} onSelect={() => { setSelectedOperator(op); setOpenOperator(false); }}>
+                          {Array.isArray(operators) ? operators.map((op) => (
+                            <CommandItem key={op.code || op.id} value={op.name} onSelect={() => { setSelectedOperator(op); setOpenOperator(false); }}>
                               <Check className={cn("mr-2 h-4 w-4", selectedOperator?.code === op.code ? "opacity-100 text-primary" : "opacity-0")} />
                               {op.name}
                             </CommandItem>
-                          ))}
+                          )) : (
+                            <CommandItem disabled>Data tidak tersedia</CommandItem>
+                          )}
                         </CommandGroup>
                       </CommandList>
                     </Command>

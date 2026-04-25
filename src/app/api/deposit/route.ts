@@ -18,18 +18,18 @@ const depositSchema = z.object({
  */
 function getPakasirMethod(code: string): string | null {
   const c = code.toLowerCase();
-  if (c.includes("qris"))     return "qris";
-  if (c.includes("bca"))      return "bca_va";
-  if (c.includes("bni"))      return "bni_va";
-  if (c.includes("bri"))      return "bri_va";
-  if (c.includes("mandiri"))  return "mandiri_va";
-  if (c.includes("permata"))  return "permata_va";
-  if (c.includes("cimb"))     return "cimb_va";
-  if (c.includes("danamon"))  return "danamon_va";
-  if (c.includes("ovo"))      return "ovo";
-  if (c.includes("dana"))     return "dana";
-  if (c.includes("gopay"))    return "gopay";
-  if (c.includes("shopee"))   return "shopeepay";
+  if (c.includes("qris")) return "qris";
+  if (c.includes("bca")) return "bca_va";
+  if (c.includes("bni")) return "bni_va";
+  if (c.includes("bri")) return "bri_va";
+  if (c.includes("mandiri")) return "mandiri_va";
+  if (c.includes("permata")) return "permata_va";
+  if (c.includes("cimb")) return "cimb_va";
+  if (c.includes("danamon")) return "danamon_va";
+  if (c.includes("ovo")) return "ovo";
+  if (c.includes("dana")) return "dana";
+  if (c.includes("gopay")) return "gopay";
+  if (c.includes("shopee")) return "shopeepay";
   return null;
 }
 
@@ -92,8 +92,8 @@ export async function POST(req: Request) {
 
     // ── Tentukan alur: Pakasir atau Manual/Crypto ─────────────────────────────
     let paymentUrl: string | undefined;
-    let vaNumber:   string | undefined;
-    let qrUrl:      string | undefined;
+    let vaNumber: string | undefined;
+    let qrUrl: string | undefined;
     let instruction: string | undefined;
 
     const pakasirMethod = getPakasirMethod(method);
@@ -139,8 +139,8 @@ export async function POST(req: Request) {
       } else {
         // Fallback untuk struktur legacy
         paymentUrl = pakasirRes.data?.payment_url ?? undefined;
-        vaNumber   = pakasirRes.data?.va_number ?? undefined;
-        qrUrl      = pakasirRes.data?.qr_string ?? undefined;
+        vaNumber = pakasirRes.data?.va_number ?? undefined;
+        qrUrl = pakasirRes.data?.qr_string ?? undefined;
         console.log(`${TAG} Pakasir OK (Legacy Format) | paymentUrl=${!!paymentUrl} qrUrl=${!!qrUrl} vaNumber=${!!vaNumber}`);
       }
     } else {
@@ -203,11 +203,11 @@ export async function GET() {
     // Fallback jika DB belum ada data — tampilkan QRIS default
     return NextResponse.json({
       methods: [
-        { id: "default_qris",   name: "QRIS",                  code: "qris",     category: "indonesia", adminFeePercent: 0.7, estimasiMenit: 2,  iconUrl: null },
-        { id: "default_bca",    name: "BCA Virtual Account",    code: "bca_va",   category: "indonesia", adminFeePercent: 0,   estimasiMenit: 5,  iconUrl: null },
-        { id: "default_bri",    name: "BRI Virtual Account",    code: "bri_va",   category: "indonesia", adminFeePercent: 0,   estimasiMenit: 5,  iconUrl: null },
-        { id: "default_bni",    name: "BNI Virtual Account",    code: "bni_va",   category: "indonesia", adminFeePercent: 0,   estimasiMenit: 5,  iconUrl: null },
-        { id: "default_usdt",   name: "USDT - TRC20",           code: "usdt_trc20", category: "crypto", adminFeePercent: 0.7, estimasiMenit: 10, iconUrl: null },
+        { id: "default_qris", name: "QRIS", code: "qris", category: "indonesia", adminFeePercent: 0.7, estimasiMenit: 2, iconUrl: null },
+        { id: "default_bca", name: "BCA Virtual Account", code: "bca_va", category: "indonesia", adminFeePercent: 0, estimasiMenit: 5, iconUrl: null },
+        { id: "default_bri", name: "BRI Virtual Account", code: "bri_va", category: "indonesia", adminFeePercent: 0, estimasiMenit: 5, iconUrl: null },
+        { id: "default_bni", name: "BNI Virtual Account", code: "bni_va", category: "indonesia", adminFeePercent: 0, estimasiMenit: 5, iconUrl: null },
+        { id: "default_usdt", name: "USDT - TRC20", code: "usdt_trc20", category: "crypto", adminFeePercent: 0.7, estimasiMenit: 10, iconUrl: null },
       ],
     });
   }
