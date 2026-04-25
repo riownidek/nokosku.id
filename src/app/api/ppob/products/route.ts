@@ -26,11 +26,10 @@ export async function GET(req: Request) {
 
     return NextResponse.json(withMarkup);
   } catch (error: any) {
-    const rawError = error.response?.data || error.message || error;
-    console.error("PPOB FETCH ERROR:", rawError);
+    console.log("=== PPOB FATAL ERROR ===", JSON.stringify(error.response?.data || error.message || error));
     return NextResponse.json({ 
       error: "Gagal mengambil daftar produk PPOB", 
-      detail: rawError 
+      detail: error.response?.data || error.message || String(error) 
     }, { status: 500 });
   }
 }
