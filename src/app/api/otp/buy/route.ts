@@ -48,16 +48,29 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: msg }, { status: 503 });
     }
 
-    if (!otpOrder?.id || !otpOrder?.number) {
-      console.error(`${TAG} Invalid response from RumahOTP:`, otpOrder);
+    // Pastikan success adalah true dan data ada
+    if ((otpOrder as any)?.success !== true || !(otpOrder as any)?.data) {
+      console.error(`${TAG} Unsuccessful response from RumahOTP:`, otpOrder);
       return NextResponse.json(
         { error: "Gagal mendapatkan nomor OTP — layanan tidak merespons dengan benar. Saldo Anda tidak terpotong." },
         { status: 502 }
       );
     }
 
+    const orderData = (otpOrder as any).data;
+    const providerOrderId = orderData?.order_id;
+    const phoneNumber = orderData?.phone_number;
+
+    if (!providerOrderId || !phoneNumber) {
+      console.error(`${TAG} Invalid response data from RumahOTP:`, orderData);
+      return NextResponse.json(
+        { error: "Format respons OTP tidak dikenali. Saldo Anda tidak terpotong." },
+        { status: 502 }
+      );
+    }
+
     // ── 3. Hitung biaya setelah dapat response (harga dari API) ─────────────
-    const baseCostRaw = (otpOrder as any).price ?? 0;
+    const baseCostRaw = orderData?.price ?? 0;
     const cost = applyMarkupSync(baseCostRaw, markupPercent);
 
     // ── 4. Validasi saldo SETELAH dapat harga dari API ───────────────────────
@@ -65,7 +78,7 @@ export async function POST(req: Request) {
     if (userBalance < cost) {
       // Batalkan pesanan di provider (fire-and-forget)
       rateLimitDelay()
-        .then(() => cancelOTPOrder(otpOrder.id, "cancel"))
+        .then(() => cancelOTPOrder(String(providerOrderId), "cancel"))
         .catch((err) => console.error(`${TAG} Cancel order failed:`, err));
 
       console.warn(`${TAG} Insufficient balance: user=${session.user.email} balance=${userBalance} cost=${cost}`);
@@ -84,8 +97,8 @@ export async function POST(req: Request) {
         prisma.order.create({
           data: {
             userId: session.user.id,
-            providerOrderId: String(otpOrder.id),
-            targetData: otpOrder.number,
+            providerOrderId: String(providerOrderId),
+            targetData: String(phoneNumber),
             serviceCategory: "OTP",
             productName: serviceName ?? `OTP ${number_id}`,
             status: "ACTIVE",
@@ -104,7 +117,7 @@ export async function POST(req: Request) {
             amount: cost,
             type: "DEDUCTION",
             status: "SUCCESS",
-            note: `OTP ${serviceName ?? number_id} - ${otpOrder.number}`,
+            note: `OTP ${serviceName ?? number_id} - ${phoneNumber}`,
           },
         }),
       ]);
@@ -114,7 +127,7 @@ export async function POST(req: Request) {
       // Cancel order di provider
       console.error(`${TAG} DB transaction failed, cancelling provider order:`, dbErr);
       rateLimitDelay()
-        .then(() => cancelOTPOrder(otpOrder.id, "cancel"))
+        .then(() => cancelOTPOrder(String(providerOrderId), "cancel"))
         .catch((err) => console.error(`${TAG} Emergency cancel failed:`, err));
       return NextResponse.json(
         { error: "Terjadi kesalahan sistem. Pesanan dibatalkan, saldo Anda tidak terpotong." },
@@ -122,19 +135,19 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log(`${TAG} SUCCESS: orderId=${order.id} number=${otpOrder.number} cost=${cost} user=${session.user.email}`);
+    console.log(`${TAG} SUCCESS: orderId=${order.id} number=${phoneNumber} cost=${cost} user=${session.user.email}`);
 
     // ── Telegram (fire-and-forget) ────────────────────────────────────────────
     sendTelegramMessage(
-      `📱 *OTP Dibeli*\nUser: ${session.user.email}\nNomor: \`${otpOrder.number}\`\nLayanan: ${serviceName ?? number_id}\nBiaya: Rp ${cost.toLocaleString("id-ID")}`
+      `📱 *OTP Dibeli*\nUser: ${session.user.email}\nNomor: \`${phoneNumber}\`\nLayanan: ${serviceName ?? number_id}\nBiaya: Rp ${cost.toLocaleString("id-ID")}`
     ).catch((err) => console.error(`${TAG} Telegram failed:`, err));
 
     return NextResponse.json({
       success: true,
       order: {
         id: order.id,
-        number: otpOrder.number,
-        providerOrderId: otpOrder.id,
+        number: phoneNumber,
+        providerOrderId: providerOrderId,
         cost,
         expiresAt,
       },
