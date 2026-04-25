@@ -148,8 +148,9 @@ export async function getOTPCountries(serviceId?: string | number): Promise<OTPC
   return normalizeArray<OTPCountry>(raw, "getOTPCountries");
 }
 
-export async function getOTPOperators(country: string): Promise<OTPOperator[]> {
-  const raw = await apiFetch<unknown>(`/v2/operators?country=${country}`);
+export async function getOTPOperators(country: string, providerId?: number): Promise<OTPOperator[]> {
+  const query = providerId ? `?country=${country}&provider_id=${providerId}` : `?country=${country}`;
+  const raw = await apiFetch<unknown>(`/v2/operators${query}`);
   return normalizeArray<OTPOperator>(raw, "getOTPOperators");
 }
 

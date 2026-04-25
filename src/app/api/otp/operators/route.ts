@@ -8,17 +8,20 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const country = searchParams.get("country") ?? undefined;
+  const country = searchParams.get("country");
+  const providerIdRaw = searchParams.get("provider_id");
+  const providerId = providerIdRaw ? parseInt(providerIdRaw, 10) : undefined;
 
   if (!country) {
-    return NextResponse.json({ error: "Service dan country wajib diisi" }, { status: 400 });
+    return NextResponse.json({ error: "Parameter 'country' wajib diisi" }, { status: 400 });
   }
 
   try {
-    const operators = await getOTPOperators(country);
+    console.log(`[OTP Operators] country=${country} provider_id=${providerId}`);
+    const operators = await getOTPOperators(country, providerId);
     return NextResponse.json(operators);
   } catch (error: any) {
-    console.error("[OTP Operators]", error);
+    console.error("[OTP Operators] ERROR:", error?.message ?? error);
     return NextResponse.json({ error: error?.message ?? "Gagal mengambil daftar operator" }, { status: 500 });
   }
 }

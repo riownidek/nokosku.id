@@ -19,9 +19,10 @@ export async function POST(req: Request) {
 
   console.log(`${TAG} RAW WEBHOOK PAYLOAD:`, JSON.stringify(body));
 
-  // Mendukung berbagai struktur payload dari Pakasir
+  // Payload resmi Pakasir: { order_id, status, amount, payment_method, completed_at }
   const order_id = body?.order_id ?? body?.reference ?? body?.data?.order_id;
-  const status = body?.status ?? body?.data?.status;
+  const status   = (body?.status ?? body?.data?.status ?? "").toLowerCase();
+  const amount   = Number(body?.amount ?? body?.data?.amount ?? 0);
 
   if (!order_id || !status) {
     console.error(`${TAG} Missing order_id or status`);
@@ -33,14 +34,15 @@ export async function POST(req: Request) {
   // ─── 2. Proses secara async — balas 200 DULU, proses di background ─────────
   // Dalam Vercel Edge/Node, kita proses synchronous tapi pastikan SELALU 200
   try {
-    // ── Cari transaksi di DB ─────────────────────────────────────────────────
+    // ── Cari transaksi di DB — gunakan gatewayReference (= order_id dari Pakasir) ─
     const transaction = await prisma.transaction.findFirst({
-      where: { gatewayReference: { equals: order_id, mode: "insensitive" } },
+      where: {
+        gatewayReference: { equals: order_id, mode: "insensitive" },
+      },
       include: { user: { select: { id: true, name: true, email: true, referredBy: true } } },
     });
 
     if (!transaction) {
-      // Tidak ditemukan → mungkin duplicate webhook → abaikan, tetap 200
       console.warn(`${TAG} Transaction not found for order_id=${order_id} — ignoring`);
       return NextResponse.json({ received: true });
     }
@@ -62,10 +64,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true, verification_pending: true });
     }
 
-    // Jika pembayaran failed/expired → tandai FAILED
-    const verifyStatusStr = String(verified.data?.status || verified?.status || status || "").toLowerCase();
-    const isSuccess = ["success", "completed", "paid", "settled", "true"].includes(verifyStatusStr);
-    const isFailed = ["failed", "expired", "canceled", "cancelled", "false"].includes(verifyStatusStr);
+    // Status strict per dokumentasi Pakasir: "completed" = sukses
+    const isSuccess = status === "completed";
+    const isFailed  = ["failed", "expired", "canceled", "cancelled"].includes(status);
+    console.log(`${TAG} Status check: raw=${status} isSuccess=${isSuccess} isFailed=${isFailed}`);
 
     if (!isSuccess) {
       if (isFailed) {
@@ -79,11 +81,11 @@ export async function POST(req: Request) {
           console.error(`${TAG} DB update FAILED error:`, dbErr);
         }
       }
-      return NextResponse.json({ received: true, payment_status: verifyStatusStr || "unconfirmed" });
+      return NextResponse.json({ received: true, payment_status: status || "unconfirmed" });
     }
 
-    // ── Pembayaran sukses — update saldo secara atomik ───────────────────────
-    const depositAmount = transaction.amount;
+    // Pembayaran sukses: gunakan amount dari payload Pakasir (bukan dari DB)
+    const depositAmount = amount > 0 ? amount : transaction.amount;
     const userId = transaction.userId;
     const referrerId = transaction.user.referredBy;
 

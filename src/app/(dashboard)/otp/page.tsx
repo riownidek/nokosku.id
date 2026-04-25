@@ -55,9 +55,13 @@ export default function OTPPage() {
     fetcher
   );
 
-  // Fetch operators when country selected
+  // Fetch operators: gunakan nama negara (string) + provider_id jika tersedia
+  const countryName = (selectedCountry as any)?.country_name ?? selectedCountry?.name ?? null;
+  const providerId   = (selectedCountry as any)?.provider_id ?? (selectedCountry as any)?.id ?? null;
   const { data: operators, isLoading: loadingOperators } = useSWR<Operator[]>(
-    (selectedCountry && countryId) ? `/api/otp/operators?country=${countryId}` : null,
+    (selectedCountry && countryName)
+      ? `/api/otp/operators?country=${encodeURIComponent(countryName)}${providerId ? `&provider_id=${providerId}` : ``}`
+      : null,
     fetcher
   );
 
