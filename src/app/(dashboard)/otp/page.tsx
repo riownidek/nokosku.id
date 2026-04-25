@@ -71,8 +71,12 @@ export default function OTPPage() {
 
   const services = Array.isArray(servicesRaw) ? servicesRaw : [];
 
-  const totalCost = selectedService
-    ? applyMarkupSync(selectedService.price, markupPercent)
+  const rawPrice = (Array.isArray(pricelist) && pricelist.length > 0)
+    ? (Number(pricelist[0]?.price) || 0)
+    : 0;
+
+  const totalCost = (selectedCountry && rawPrice > 0)
+    ? applyMarkupSync(rawPrice, markupPercent)
     : 0;
 
   const canBuy = !!(selectedService && selectedCountry && !isBuying);
