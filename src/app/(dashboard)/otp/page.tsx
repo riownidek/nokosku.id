@@ -45,15 +45,19 @@ export default function OTPPage() {
   const [isBuying, setIsBuying] = useState(false);
   const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null);
 
+  // Defensive ID extraction
+  const serviceId = selectedService?.code || (selectedService as any)?.service_code || (selectedService as any)?.id;
+  const countryId = selectedCountry?.code || selectedCountry?.id || (selectedCountry as any)?.country_id;
+
   // Fetch countries when service selected — pass service_id as required by RumahOTP API
   const { data: countries, isLoading: loadingCountries } = useSWR<Country[]>(
-    selectedService ? `/api/otp/countries?service=${selectedService.code}` : null,
+    serviceId ? `/api/otp/countries?service=${serviceId}` : null,
     fetcher
   );
 
   // Fetch operators when country selected
   const { data: operators, isLoading: loadingOperators } = useSWR<Operator[]>(
-    selectedService && selectedCountry ? `/api/otp/operators?country=${selectedCountry.code}` : null,
+    (serviceId && countryId) ? `/api/otp/operators?country=${countryId}` : null,
     fetcher
   );
 
@@ -188,7 +192,7 @@ export default function OTPPage() {
                       {loadingCountries ? (
                         <span className="text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Memuat negara...</span>
                       ) : selectedCountry ? (
-                        <span className="font-semibold">{selectedCountry.name}</span>
+                        <span className="font-semibold">{(selectedCountry as any).country_name || selectedCountry.name}</span>
                       ) : (
                         <span className="text-muted-foreground">Pilih negara (contoh: Indonesia)...</span>
                       )}
@@ -201,12 +205,16 @@ export default function OTPPage() {
                       <CommandList>
                         <CommandEmpty>Negara tidak ditemukan.</CommandEmpty>
                         <CommandGroup>
-                          {Array.isArray(countries) ? countries.map((c) => (
-                            <CommandItem key={c.code || c.id} value={c.name} onSelect={() => { setSelectedCountry(c); setSelectedOperator(null); setOpenCountry(false); }}>
-                              <Check className={cn("mr-2 h-4 w-4", selectedCountry?.code === c.code ? "opacity-100 text-primary" : "opacity-0")} />
-                              {c.name}
-                            </CommandItem>
-                          )) : (
+                          {Array.isArray(countries) ? countries.map((c: any) => {
+                            const cId = c.country_id ?? c.code ?? c.id;
+                            const cName = c.country_name ?? c.name;
+                            return (
+                              <CommandItem key={cId} value={cName} onSelect={() => { setSelectedCountry(c); setSelectedOperator(null); setOpenCountry(false); }}>
+                                <Check className={cn("mr-2 h-4 w-4", countryId === cId ? "opacity-100 text-primary" : "opacity-0")} />
+                                {cName}
+                              </CommandItem>
+                            );
+                          }) : (
                             <CommandItem disabled>Data tidak tersedia</CommandItem>
                           )}
                         </CommandGroup>
@@ -232,7 +240,7 @@ export default function OTPPage() {
                       {loadingOperators ? (
                         <span className="text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Memuat operator...</span>
                       ) : selectedOperator ? (
-                        <span className="font-semibold">{selectedOperator.name}</span>
+                        <span className="font-semibold">{(selectedOperator as any).operator_name || selectedOperator.name}</span>
                       ) : (
                         <span className="text-muted-foreground">Pilih operator (opsional)...</span>
                       )}
@@ -245,12 +253,17 @@ export default function OTPPage() {
                       <CommandList>
                         <CommandEmpty>Operator tidak ditemukan.</CommandEmpty>
                         <CommandGroup>
-                          {Array.isArray(operators) ? operators.map((op) => (
-                            <CommandItem key={op.code || op.id} value={op.name} onSelect={() => { setSelectedOperator(op); setOpenOperator(false); }}>
-                              <Check className={cn("mr-2 h-4 w-4", selectedOperator?.code === op.code ? "opacity-100 text-primary" : "opacity-0")} />
-                              {op.name}
-                            </CommandItem>
-                          )) : (
+                          {Array.isArray(operators) ? operators.map((op: any) => {
+                            const opId = op.operator_id ?? op.code ?? op.id;
+                            const opName = op.operator_name ?? op.name;
+                            const selectedOpId = selectedOperator?.code || selectedOperator?.id || (selectedOperator as any)?.operator_id;
+                            return (
+                              <CommandItem key={opId} value={opName} onSelect={() => { setSelectedOperator(op); setOpenOperator(false); }}>
+                                <Check className={cn("mr-2 h-4 w-4", selectedOpId === opId ? "opacity-100 text-primary" : "opacity-0")} />
+                                {opName}
+                              </CommandItem>
+                            );
+                          }) : (
                             <CommandItem disabled>Data tidak tersedia</CommandItem>
                           )}
                         </CommandGroup>

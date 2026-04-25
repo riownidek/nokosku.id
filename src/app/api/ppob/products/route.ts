@@ -26,7 +26,11 @@ export async function GET(req: Request) {
 
     return NextResponse.json(withMarkup);
   } catch (error: any) {
-    console.error("RUMAHOTP FATAL ERROR:", error.response?.data || error.message || error);
-    return NextResponse.json({ error: "Gagal mengambil daftar produk PPOB" }, { status: 500 });
+    const rawError = error.response?.data || error.message || error;
+    console.error("PPOB FETCH ERROR:", rawError);
+    return NextResponse.json({ 
+      error: "Gagal mengambil daftar produk PPOB", 
+      detail: rawError 
+    }, { status: 500 });
   }
 }
