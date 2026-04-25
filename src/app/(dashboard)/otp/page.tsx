@@ -85,9 +85,9 @@ export default function OTPPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          service:     selectedService.code,
-          country:     selectedCountry.code,
-          operator:    selectedOperator?.code,
+          number_id:   (selectedCountry as any)?.number_id ?? (selectedCountry as any)?.id,
+          provider_id: providerId,
+          operator_id: (selectedOperator as any)?.operator_id ?? (selectedOperator as any)?.id ?? selectedOperator?.code,
           serviceName: selectedService.name,
         }),
       });

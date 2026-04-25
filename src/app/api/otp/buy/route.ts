@@ -13,11 +13,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const { service, country, operator, serviceName } = await req.json();
-    if (!service || !country)
-      return NextResponse.json({ error: "Service dan country wajib diisi" }, { status: 400 });
+    const { number_id, provider_id, operator_id, serviceName } = await req.json();
+    if (!number_id || !provider_id)
+      return NextResponse.json({ error: "number_id dan provider_id wajib diisi" }, { status: 400 });
 
-    console.log(`${TAG} Request: user=${session.user.email} service=${service} country=${country}`);
+    console.log(`${TAG} Request: user=${session.user.email} number_id=${number_id} provider_id=${provider_id}`);
 
     // ── 1. Ambil markup + data user SEBELUM memanggil API eksternal ──────────
     const [markupSetting, user] = await Promise.all([
@@ -34,7 +34,11 @@ export async function POST(req: Request) {
     let otpOrder: Awaited<ReturnType<typeof buyOTPNumber>>;
     try {
       await rateLimitDelay();
-      otpOrder = await buyOTPNumber({ service, country, operator });
+      otpOrder = await buyOTPNumber({ 
+        number_id: Number(number_id), 
+        provider_id: Number(provider_id), 
+        operator_id: operator_id ? String(operator_id) : undefined 
+      });
     } catch (apiErr: any) {
       const isTimeout = apiErr?.message?.includes("timeout");
       const msg = isTimeout
@@ -83,7 +87,7 @@ export async function POST(req: Request) {
             providerOrderId: String(otpOrder.id),
             targetData: otpOrder.number,
             serviceCategory: "OTP",
-            productName: serviceName ?? service,
+            productName: serviceName ?? `OTP ${number_id}`,
             status: "ACTIVE",
             cost,
             baseCost: baseCostRaw,
@@ -100,7 +104,7 @@ export async function POST(req: Request) {
             amount: cost,
             type: "DEDUCTION",
             status: "SUCCESS",
-            note: `OTP ${serviceName ?? service} - ${otpOrder.number}`,
+            note: `OTP ${serviceName ?? number_id} - ${otpOrder.number}`,
           },
         }),
       ]);
@@ -122,7 +126,7 @@ export async function POST(req: Request) {
 
     // ── Telegram (fire-and-forget) ────────────────────────────────────────────
     sendTelegramMessage(
-      `📱 *OTP Dibeli*\nUser: ${session.user.email}\nNomor: \`${otpOrder.number}\`\nLayanan: ${serviceName ?? service}\nBiaya: Rp ${cost.toLocaleString("id-ID")}`
+      `📱 *OTP Dibeli*\nUser: ${session.user.email}\nNomor: \`${otpOrder.number}\`\nLayanan: ${serviceName ?? number_id}\nBiaya: Rp ${cost.toLocaleString("id-ID")}`
     ).catch((err) => console.error(`${TAG} Telegram failed:`, err));
 
     return NextResponse.json({

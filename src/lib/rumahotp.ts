@@ -154,8 +154,13 @@ export async function getOTPOperators(country: string, providerId?: number): Pro
   return normalizeArray<OTPOperator>(raw, "getOTPOperators");
 }
 
-export async function buyOTPNumber(params: { service: string; country: string; operator?: string; }): Promise<OTPOrder> {
-  return apiFetch<OTPOrder>("/v2/orders", { method: "POST", body: JSON.stringify(params) });
+export async function buyOTPNumber(params: { number_id: number; provider_id: number; operator_id?: string | number; }): Promise<OTPOrder> {
+  let query = `?number_id=${params.number_id}&provider_id=${params.provider_id}`;
+  if (params.operator_id) {
+    query += `&operator_id=${params.operator_id}`;
+  }
+  // Dokumentasi mensyaratkan GET request untuk /v2/orders
+  return apiFetch<OTPOrder>(`/v2/orders${query}`);
 }
 
 export async function getOTPStatus(orderId: string): Promise<OTPOrder> {
