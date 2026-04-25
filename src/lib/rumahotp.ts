@@ -188,9 +188,9 @@ export interface H2HOrderResponse {
 }
 
 export async function getH2HProducts(category?: string): Promise<H2HProduct[]> {
-  // Correct endpoint: /v2/product (not /v1/h2h/product)
+  // Endpoint valid: /v1/h2h/product (sesuai pola endpoint H2H lainnya)
   const query = category ? `?category=${category}` : "";
-  const raw = await apiFetch<unknown>(`/v2/product${query}`);
+  const raw = await apiFetch<unknown>(`/v1/h2h/product${query}`);
   return normalizeArray<H2HProduct>(raw, "getH2HProducts");
 }
 

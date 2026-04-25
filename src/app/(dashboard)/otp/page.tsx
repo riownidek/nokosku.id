@@ -146,7 +146,7 @@ export default function OTPPage() {
                     {loadingServices ? (
                       <span className="text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Memuat layanan...</span>
                     ) : selectedService ? (
-                      <span className="font-semibold">{selectedService.name} — {formatRupiah(applyMarkupSync(selectedService.price, markupPercent))}</span>
+                      <span className="font-semibold">{selectedService.name}</span>
                     ) : (
                       <span className="text-muted-foreground">Pilih layanan (contoh: WhatsApp)...</span>
                     )}
