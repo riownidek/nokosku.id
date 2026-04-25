@@ -155,10 +155,9 @@ export async function getOTPOperators(country: string, providerId?: number): Pro
 }
 
 export async function buyOTPNumber(params: { number_id: number; provider_id: number; operator_id?: string | number; }): Promise<OTPOrder> {
-  let query = `?number_id=${params.number_id}&provider_id=${params.provider_id}`;
-  if (params.operator_id) {
-    query += `&operator_id=${params.operator_id}`;
-  }
+  const opId = params.operator_id || 1;
+  const query = `?number_id=${params.number_id}&provider_id=${params.provider_id}&operator_id=${opId}`;
+  
   // Dokumentasi mensyaratkan GET request untuk /v2/orders
   return apiFetch<OTPOrder>(`/v2/orders${query}`);
 }
@@ -194,8 +193,8 @@ export interface H2HOrderResponse {
 }
 
 export async function getH2HProducts(): Promise<H2HProduct[]> {
-  // Endpoint valid: /v1/h2h/product (sesuai pola endpoint H2H lainnya, tanpa query params)
-  const raw = await apiFetch<unknown>(`/v1/h2h/product`);
+  // Endpoint valid: /v1/h2h/pricelist (sesuai percobaan rute alternatif)
+  const raw = await apiFetch<unknown>(`/v1/h2h/pricelist`);
   return normalizeArray<H2HProduct>(raw, "getH2HProducts");
 }
 
