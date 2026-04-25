@@ -160,7 +160,9 @@ export default function OTPPage() {
                             <Check className={cn("mr-2 h-4 w-4", selectedService?.code === svc.code ? "opacity-100 text-primary" : "opacity-0")} />
                             <div className="flex flex-1 items-center justify-between">
                               <span>{svc.name}</span>
-                              <span className="text-muted-foreground text-xs font-semibold">{formatRupiah(applyMarkupSync(svc.price, markupPercent))}</span>
+                              {svc.price > 0 && (
+                                <span className="text-muted-foreground text-xs font-semibold">{formatRupiah(applyMarkupSync(svc.price, markupPercent))}</span>
+                              )}
                             </div>
                           </CommandItem>
                         ))}

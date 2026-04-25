@@ -19,11 +19,13 @@ export async function GET() {
 
     const withMarkup = services.map((s: any) => {
       const rawPrice = Number(s.price ?? s.rate ?? s.cost ?? 0);
-      const serviceId = s.code ?? s.id ?? s.service_id ?? "";
+      const serviceId = s.service_code ?? s.code ?? s.id ?? s.service_id ?? "";
+      const serviceName = s.service_name ?? s.name ?? "";
       
       return {
         ...s,
         code: String(serviceId),
+        name: serviceName,
         price: rawPrice,
         displayPrice: applyMarkupSync(rawPrice, markupPercent),
         basePrice: rawPrice,
