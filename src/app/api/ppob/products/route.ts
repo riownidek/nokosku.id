@@ -62,7 +62,7 @@ export async function GET(req: Request) {
   // 4. Panggil RumahOTP API secara langsung (bypass lib agar log lebih jelas)
   try {
     const query = category ? `?category=${category}` : "";
-    const rumahOTPUrl = `https://www.rumahotp.io/api/v2/product${query}`;
+    const rumahOTPUrl = `https://www.rumahotp.io/api/v1/h2h/product${query}`;
     console.log("=== [PPOB] Memanggil RumahOTP URL:", rumahOTPUrl, "===");
 
     const controller = new AbortController();

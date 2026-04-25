@@ -55,12 +55,16 @@ export default function OTPPage() {
     fetcher
   );
 
-  // Fetch operators: gunakan nama negara (string) + provider_id jika tersedia
+  // Fetch operators: provider_id ada di dalam pricelist[0] milik negara terpilih
   const countryName = (selectedCountry as any)?.country_name ?? selectedCountry?.name ?? null;
-  const providerId   = (selectedCountry as any)?.provider_id ?? (selectedCountry as any)?.id ?? null;
+  const pricelist   = (selectedCountry as any)?.pricelist;
+  const providerId: number | null = (Array.isArray(pricelist) && pricelist.length > 0)
+    ? (pricelist[0]?.provider_id ?? null)
+    : null;
   const { data: operators, isLoading: loadingOperators } = useSWR<Operator[]>(
-    (selectedCountry && countryName)
-      ? `/api/otp/operators?country=${encodeURIComponent(countryName)}${providerId ? `&provider_id=${providerId}` : ``}`
+    // STRICT: hanya fetch jika countryName ada DAN providerId adalah angka yang valid
+    (selectedCountry && countryName && typeof providerId === "number")
+      ? `/api/otp/operators?country=${encodeURIComponent(countryName)}&provider_id=${providerId}`
       : null,
     fetcher
   );
