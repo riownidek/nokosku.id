@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { cancelOTPOrder, rateLimitDelay } from "@/lib/rumahotp";
+import { cancelNumber } from "@/lib/herosms";
+
+const TAG = "[OTP Cancel]";
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -18,13 +20,24 @@ export async function POST(req: Request) {
     if (!order)
       return NextResponse.json({ error: "Order tidak ditemukan" }, { status: 404 });
 
-    if (order.status !== "ACTIVE")
-      return NextResponse.json({ error: "Pesanan tidak dapat dibatalkan" }, { status: 400 });
+    // Izinkan pembatalan untuk status ACTIVE atau WAITING
+    if (order.status !== "ACTIVE" && order.status !== "WAITING") {
+      return NextResponse.json(
+        { error: `Pesanan berstatus "${order.status}" tidak dapat dibatalkan` },
+        { status: 400 }
+      );
+    }
 
-    // Batalkan di RumahOTP
+    // Batalkan di Hero-SMS (jika ada activationId / providerOrderId)
+    let cancelledAtProvider = false;
     if (order.providerOrderId) {
-      await rateLimitDelay();
-      await cancelOTPOrder(order.providerOrderId, "cancel");
+      try {
+        cancelledAtProvider = await cancelNumber(order.providerOrderId);
+        console.log(`${TAG} Hero-SMS cancel result for ${order.providerOrderId}: ${cancelledAtProvider}`);
+      } catch (err) {
+        // Tetap lanjutkan refund meski gagal di provider (edge case nomor sudah expired di sisi mereka)
+        console.warn(`${TAG} Hero-SMS cancel request failed (proceeding with refund):`, err);
+      }
     }
 
     // Update status + refund secara atomik
@@ -43,14 +56,15 @@ export async function POST(req: Request) {
           amount: order.cost,
           type: "REFUND",
           status: "SUCCESS",
-          note: `Refund OTP cancelled - ${order.targetData}`,
+          note: `Refund OTP dibatalkan - ${order.targetData}`,
         },
       }),
     ]);
 
+    console.log(`${TAG} SUCCESS: orderId=${orderId} refunded=${Number(order.cost)} user=${session.user.email}`);
     return NextResponse.json({ success: true, refunded: Number(order.cost) });
   } catch (error) {
-    console.error("[OTP Cancel]", error);
+    console.error(`${TAG} Unhandled error:`, error);
     return NextResponse.json({ error: "Gagal membatalkan pesanan" }, { status: 500 });
   }
 }

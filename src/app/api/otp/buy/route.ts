@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { buyOTPNumber, rateLimitDelay, cancelOTPOrder } from "@/lib/rumahotp";
+import { getNumber, cancelNumber, getUsdToIdrRate, usdToIdr, getPrices } from "@/lib/herosms";
 import { applyMarkupSync } from "@/lib/utils";
 import { sendTelegramMessage } from "@/lib/telegram";
 
@@ -13,15 +13,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const { number_id, provider_id, operator_id, serviceName } = await req.json();
-    if (!number_id || !provider_id)
-      return NextResponse.json({ error: "number_id dan provider_id wajib diisi" }, { status: 400 });
+    const { service, country, serviceName } = await req.json();
 
-    console.log(`${TAG} Request: user=${session.user.email} number_id=${number_id} provider_id=${provider_id}`);
+    if (!service || country === undefined || country === null)
+      return NextResponse.json({ error: "Parameter 'service' dan 'country' wajib diisi" }, { status: 400 });
 
-    // ── 1. Ambil markup + data user SEBELUM memanggil API eksternal ──────────
-    const [markupSetting, user] = await Promise.all([
+    console.log(`${TAG} Request: user=${session.user.email} service=${service} country=${country}`);
+
+    // ── 1. Ambil markup + kurs + data user secara paralel ──────────────────────
+    const [markupSetting, usdRate, user] = await Promise.all([
       prisma.setting.findUnique({ where: { key: "markup_percent" } }),
+      getUsdToIdrRate(),
       prisma.user.findUnique({ where: { id: session.user.id } }),
     ]);
 
@@ -30,66 +32,63 @@ export async function POST(req: Request) {
 
     const markupPercent = parseFloat(markupSetting?.value ?? "0");
 
-    // ── 2. Beli nomor dari RumahOTP (dengan timeout built-in di lib) ─────────
-    let otpOrder: Awaited<ReturnType<typeof buyOTPNumber>>;
+    // ── 2. Ambil harga dari Hero-SMS untuk service+country ini ─────────────────
+    // Harga USD dari getPrices digunakan untuk validasi saldo sebelum beli
+    let baseCostUsd = 0;
     try {
-      await rateLimitDelay();
-      otpOrder = await buyOTPNumber({ 
-        number_id: Number(number_id), 
-        provider_id: Number(provider_id), 
-        operator_id: operator_id ? String(operator_id) : undefined 
-      });
+      const prices = await getPrices(service);
+      const countryPrices = prices?.[service]?.[String(country)];
+      baseCostUsd = countryPrices?.price ?? 0;
+    } catch (priceErr) {
+      console.warn(`${TAG} Gagal ambil harga dari getPrices, lanjut dengan 0:`, priceErr);
+    }
+
+    const baseCostIdr = usdToIdr(baseCostUsd, usdRate);
+    const cost = applyMarkupSync(baseCostIdr, markupPercent);
+
+    // ── 3. Validasi saldo sebelum memanggil API (jika harga diketahui) ─────────
+    if (cost > 0) {
+      const userBalance = Number(user.balance);
+      if (userBalance < cost) {
+        return NextResponse.json(
+          { error: `Saldo tidak mencukupi. Estimasi biaya: Rp ${cost.toLocaleString("id-ID")}, saldo Anda: Rp ${userBalance.toLocaleString("id-ID")}` },
+          { status: 402 }
+        );
+      }
+    }
+
+    // ── 4. Beli nomor dari Hero-SMS ────────────────────────────────────────────
+    let heroOrder: { activationId: string; phoneNumber: string };
+    try {
+      heroOrder = await getNumber(String(service), Number(country));
     } catch (apiErr: any) {
-      const isTimeout = apiErr?.message?.includes("timeout");
-      const msg = isTimeout
-        ? "Maaf, layanan OTP sedang lambat merespons. Saldo Anda tidak terpotong. Coba lagi dalam beberapa saat."
-        : "Maaf, layanan OTP sedang gangguan dari pusat. Saldo Anda tidak terpotong.";
-      console.error(`${TAG} RumahOTP API error:`, apiErr?.message);
-      return NextResponse.json({ error: msg }, { status: 503 });
-    }
-
-    // Pastikan success adalah true dan data ada
-    if ((otpOrder as any)?.success !== true || !(otpOrder as any)?.data) {
-      console.error(`${TAG} Unsuccessful response from RumahOTP:`, otpOrder);
+      console.error(`${TAG} Hero-SMS getNumber error:`, apiErr?.message);
       return NextResponse.json(
-        { error: "Gagal mendapatkan nomor OTP — layanan tidak merespons dengan benar. Saldo Anda tidak terpotong." },
-        { status: 502 }
+        { error: apiErr?.message ?? "Gagal mendapatkan nomor OTP. Saldo Anda tidak terpotong." },
+        { status: 503 }
       );
     }
 
-    const orderData = (otpOrder as any).data;
-    const providerOrderId = orderData?.order_id;
-    const phoneNumber = orderData?.phone_number;
+    const { activationId, phoneNumber } = heroOrder;
 
-    if (!providerOrderId || !phoneNumber) {
-      console.error(`${TAG} Invalid response data from RumahOTP:`, orderData);
-      return NextResponse.json(
-        { error: "Format respons OTP tidak dikenali. Saldo Anda tidak terpotong." },
-        { status: 502 }
-      );
-    }
+    // ── 5. Hitung biaya final (jika belum diketahui dari getPrices) ────────────
+    const finalCost = cost > 0 ? cost : applyMarkupSync(usdToIdr(0.05, usdRate), markupPercent);
 
-    // ── 3. Hitung biaya setelah dapat response (harga dari API) ─────────────
-    const baseCostRaw = orderData?.price ?? 0;
-    const cost = applyMarkupSync(baseCostRaw, markupPercent);
-
-    // ── 4. Validasi saldo SETELAH dapat harga dari API ───────────────────────
+    // ── 6. Validasi saldo kembali (pakai harga pasti setelah berhasil beli) ────
     const userBalance = Number(user.balance);
-    if (userBalance < cost) {
-      // Batalkan pesanan di provider (fire-and-forget)
-      rateLimitDelay()
-        .then(() => cancelOTPOrder(String(providerOrderId), "cancel"))
-        .catch((err) => console.error(`${TAG} Cancel order failed:`, err));
-
-      console.warn(`${TAG} Insufficient balance: user=${session.user.email} balance=${userBalance} cost=${cost}`);
+    if (userBalance < finalCost) {
+      // Batalkan pesanan di Hero-SMS karena saldo tidak cukup
+      cancelNumber(activationId).catch((err) =>
+        console.error(`${TAG} Emergency cancel failed:`, err)
+      );
       return NextResponse.json(
-        { error: `Saldo tidak mencukupi. Biaya: Rp ${cost.toLocaleString("id-ID")}, saldo Anda: Rp ${userBalance.toLocaleString("id-ID")}` },
+        { error: `Saldo tidak mencukupi. Biaya: Rp ${finalCost.toLocaleString("id-ID")}` },
         { status: 402 }
       );
     }
 
-    // ── 5. Potong saldo + simpan order secara atomik ─────────────────────────
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    // ── 7. Potong saldo + simpan order secara atomik ───────────────────────────
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 menit
 
     let order: any;
     try {
@@ -97,49 +96,47 @@ export async function POST(req: Request) {
         prisma.order.create({
           data: {
             userId: session.user.id,
-            providerOrderId: String(providerOrderId),
-            targetData: String(phoneNumber),
+            providerOrderId: activationId,
+            targetData: phoneNumber,
             serviceCategory: "OTP",
-            productName: serviceName ?? `OTP ${number_id}`,
+            productName: serviceName ?? `OTP ${service}`,
             status: "ACTIVE",
-            cost,
-            baseCost: baseCostRaw,
+            cost: finalCost,
+            baseCost: baseCostIdr,
             expiresAt,
           },
         }),
         prisma.user.update({
           where: { id: session.user.id },
-          data: { balance: { decrement: cost } },
+          data: { balance: { decrement: finalCost } },
         }),
         prisma.transaction.create({
           data: {
             userId: session.user.id,
-            amount: cost,
+            amount: finalCost,
             type: "DEDUCTION",
             status: "SUCCESS",
-            note: `OTP ${serviceName ?? number_id} - ${phoneNumber}`,
+            note: `OTP ${serviceName ?? service} - ${phoneNumber}`,
           },
         }),
       ]);
       order = results[0];
     } catch (dbErr) {
-      // DB transaction gagal → order sudah dibuat di RumahOTP tapi saldo tidak terpotong
-      // Cancel order di provider
       console.error(`${TAG} DB transaction failed, cancelling provider order:`, dbErr);
-      rateLimitDelay()
-        .then(() => cancelOTPOrder(String(providerOrderId), "cancel"))
-        .catch((err) => console.error(`${TAG} Emergency cancel failed:`, err));
+      cancelNumber(activationId).catch((err) =>
+        console.error(`${TAG} Emergency cancel failed:`, err)
+      );
       return NextResponse.json(
         { error: "Terjadi kesalahan sistem. Pesanan dibatalkan, saldo Anda tidak terpotong." },
         { status: 500 }
       );
     }
 
-    console.log(`${TAG} SUCCESS: orderId=${order.id} number=${phoneNumber} cost=${cost} user=${session.user.email}`);
+    console.log(`${TAG} SUCCESS: orderId=${order.id} number=${phoneNumber} cost=${finalCost} user=${session.user.email}`);
 
-    // ── Telegram (fire-and-forget) ────────────────────────────────────────────
+    // ── Telegram (fire-and-forget) ─────────────────────────────────────────────
     sendTelegramMessage(
-      `📱 *OTP Dibeli*\nUser: ${session.user.email}\nNomor: \`${phoneNumber}\`\nLayanan: ${serviceName ?? number_id}\nBiaya: Rp ${cost.toLocaleString("id-ID")}`
+      `📱 *OTP Dibeli*\nUser: ${session.user.email}\nNomor: \`${phoneNumber}\`\nLayanan: ${serviceName ?? service}\nNegara ID: ${country}\nBiaya: Rp ${finalCost.toLocaleString("id-ID")}`
     ).catch((err) => console.error(`${TAG} Telegram failed:`, err));
 
     return NextResponse.json({
@@ -147,8 +144,8 @@ export async function POST(req: Request) {
       order: {
         id: order.id,
         number: phoneNumber,
-        providerOrderId: providerOrderId,
-        cost,
+        providerOrderId: activationId,
+        cost: finalCost,
         expiresAt,
       },
     });

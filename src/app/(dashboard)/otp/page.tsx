@@ -4,82 +4,65 @@ import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import useSWR from "swr";
 import { toast } from "sonner";
-import {
-  Loader2, Smartphone, Globe, ChevronDown, Check,
-} from "lucide-react";
-import { formatRupiah, applyMarkupSync } from "@/lib/utils";
+import { Loader2, Smartphone, Globe, Zap } from "lucide-react";
+import { formatRupiah } from "@/lib/utils";
 import { staggerContainer, staggerItem } from "@/components/motion";
 import { OTPResultCard } from "@/components/otp-result-card";
-import {
-  Popover, PopoverContent, PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Command, CommandEmpty, CommandGroup, CommandInput,
-  CommandItem, CommandList,
-} from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-interface Service  { code: string; name: string; price: number; }
-interface Country  { id: number; code: string; name: string; }
-interface Operator { id: number; code: string; name: string; }
+// ─── Hardcoded quick-select data (Hero-SMS codes) ────────────────────────────
+
+const POPULAR_SERVICES = [
+  { code: "wa", name: "WhatsApp",  emoji: "💬" },
+  { code: "tg", name: "Telegram",  emoji: "✈️" },
+  { code: "ig", name: "Instagram", emoji: "📸" },
+  { code: "lf", name: "TikTok",    emoji: "🎵" },
+  { code: "go", name: "Gmail",     emoji: "📧" },
+  { code: "fb", name: "Facebook",  emoji: "👍" },
+];
+
+const POPULAR_COUNTRIES = [
+  { id: 2,  name: "Indonesia",  flag: "🇮🇩" },
+  { id: 73, name: "Filipina",   flag: "🇵🇭" },
+  { id: 46, name: "Malaysia",   flag: "🇲🇾" },
+];
+
 interface ActiveOrder {
-  id: string; number: string; productName: string; cost: number; expiresAt: string;
+  id: string;
+  number: string;
+  productName: string;
+  cost: number;
+  expiresAt: string;
 }
 
 export default function OTPPage() {
-  const { data: servicesRaw, isLoading: loadingServices } = useSWR<Service[]>("/api/otp/services", fetcher);
   const { data: config } = useSWR("/api/appconfig/public", fetcher, { revalidateOnFocus: false });
   const markupPercent = parseFloat(config?.markup_percent ?? "0");
 
-  const [selectedService, setSelectedService] = useState<Service | null>(null);
-  const [openService, setOpenService]     = useState(false);
-
-  const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
-  const [openCountry, setOpenCountry]         = useState(false);
-
-  const [selectedOperator, setSelectedOperator] = useState<Operator | null>(null);
-  const [openOperator, setOpenOperator]         = useState(false);
+  const [selectedService, setSelectedService] = useState<typeof POPULAR_SERVICES[0] | null>(null);
+  const [selectedCountry, setSelectedCountry] = useState<typeof POPULAR_COUNTRIES[0] | null>(null);
 
   const [isBuying, setIsBuying] = useState(false);
   const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null);
 
-  // Defensive ID extraction
-  const serviceId = selectedService?.code || (selectedService as any)?.service_code || (selectedService as any)?.id;
-  const countryId = selectedCountry?.code || selectedCountry?.id || (selectedCountry as any)?.country_id;
+  // Fetch harga untuk service + country yang dipilih dari Hero-SMS via backend
+  const priceKey =
+    selectedService && selectedCountry
+      ? `/api/otp/services?service=${selectedService.code}`
+      : null;
 
-  // Fetch countries when service selected — pass service_id as required by RumahOTP API
-  const { data: countries, isLoading: loadingCountries } = useSWR<Country[]>(
-    serviceId ? `/api/otp/countries?service=${serviceId}` : null,
-    fetcher
+  const { data: serviceData, isLoading: loadingPrice } = useSWR<any[]>(priceKey, fetcher);
+
+  // Cari harga spesifik untuk negara yang dipilih
+  const priceEntry = serviceData?.find(
+    (s) => s.code === selectedService?.code && s.countryId === selectedCountry?.id
   );
+  const displayPrice = priceEntry?.displayPrice ?? 0;
+  const stockCount  = priceEntry?.count ?? 0;
 
-  // Fetch operators: provider_id ada di dalam pricelist[0] milik negara terpilih
-  const countryName = (selectedCountry as any)?.country_name ?? selectedCountry?.name ?? null;
-  const pricelist   = (selectedCountry as any)?.pricelist;
-  const providerId: number | null = (Array.isArray(pricelist) && pricelist.length > 0)
-    ? (pricelist[0]?.provider_id ?? null)
-    : null;
-  const { data: operators, isLoading: loadingOperators } = useSWR<Operator[]>(
-    // STRICT: hanya fetch jika countryName ada DAN providerId adalah angka yang valid
-    (selectedCountry && countryName && typeof providerId === "number")
-      ? `/api/otp/operators?country=${encodeURIComponent(countryName)}&provider_id=${providerId}`
-      : null,
-    fetcher
-  );
-
-  const services = Array.isArray(servicesRaw) ? servicesRaw : [];
-
-  const rawPrice = (Array.isArray(pricelist) && pricelist.length > 0)
-    ? (Number(pricelist[0]?.price) || 0)
-    : 0;
-
-  const totalCost = (selectedCountry && rawPrice > 0)
-    ? applyMarkupSync(rawPrice, markupPercent)
-    : 0;
-
-  const canBuy = !!(selectedService && selectedCountry && !isBuying);
+  const canBuy = !!(selectedService && selectedCountry && !isBuying && displayPrice > 0);
 
   const handleBuy = useCallback(async () => {
     if (!canBuy || !selectedService || !selectedCountry) return;
@@ -89,10 +72,9 @@ export default function OTPPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          number_id:   (selectedCountry as any)?.number_id ?? (selectedCountry as any)?.id,
-          provider_id: providerId,
-          operator_id: (selectedOperator as any)?.operator_id ?? (selectedOperator as any)?.id ?? selectedOperator?.code,
-          serviceName: selectedService.name,
+          service:     selectedService.code,
+          country:     selectedCountry.id,
+          serviceName: `${selectedService.name} (${selectedCountry.name})`,
         }),
       });
       const data = await res.json();
@@ -104,19 +86,18 @@ export default function OTPPage() {
       setActiveOrder({
         id:          ord.id,
         number:      ord.number,
-        productName: selectedService.name,
-        cost:        totalCost,
+        productName: `${selectedService.name} (${selectedCountry.name})`,
+        cost:        ord.cost ?? displayPrice,
         expiresAt:   ord.expiresAt ?? new Date(Date.now() + 5 * 60 * 1000).toISOString(),
       });
       setSelectedService(null);
       setSelectedCountry(null);
-      setSelectedOperator(null);
     } catch (err: any) {
       toast.error(err.message);
     } finally {
       setIsBuying(false);
     }
-  }, [canBuy, selectedService, selectedCountry, selectedOperator, totalCost]);
+  }, [canBuy, selectedService, selectedCountry, displayPrice]);
 
   return (
     <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="space-y-5 max-w-lg">
@@ -129,7 +110,7 @@ export default function OTPPage() {
           </div>
           <div>
             <h1 className="text-xl font-black text-foreground">Jasa OTP</h1>
-            <p className="text-xs text-muted-foreground">Sewa nomor virtual untuk verifikasi</p>
+            <p className="text-xs text-muted-foreground">Sewa nomor virtual untuk verifikasi — cepat & instan</p>
           </div>
         </div>
       </motion.div>
@@ -142,150 +123,76 @@ export default function OTPPage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ type: "spring", stiffness: 350, damping: 28 }}
-            className="rounded-2xl border border-border bg-card p-5 space-y-4"
+            className="rounded-2xl border border-border bg-card p-5 space-y-5"
           >
-            {/* Service picker */}
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Layanan / Aplikasi</label>
-              <Popover open={openService} onOpenChange={setOpenService}>
-                <PopoverTrigger asChild>
-                  <motion.button
-                    whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
-                    transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                    className="flex w-full items-center justify-between rounded-xl border border-input bg-background px-4 py-3 text-sm font-medium hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
-                    disabled={loadingServices}
-                  >
-                    {loadingServices ? (
-                      <span className="text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Memuat layanan...</span>
-                    ) : selectedService ? (
-                      <span className="font-semibold">{selectedService.name}</span>
-                    ) : (
-                      <span className="text-muted-foreground">Pilih layanan (contoh: WhatsApp)...</span>
-                    )}
-                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
-                  </motion.button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0 rounded-xl shadow-xl" align="start">
-                  <Command>
-                    <CommandInput placeholder="Cari layanan..." />
-                    <CommandList>
-                      <CommandEmpty>Layanan tidak ditemukan.</CommandEmpty>
-                      <CommandGroup>
-                        {services.map((svc) => (
-                          <CommandItem key={svc.code} value={svc.name} onSelect={() => { setSelectedService(svc); setSelectedCountry(null); setSelectedOperator(null); setOpenService(false); }}>
-                            <Check className={cn("mr-2 h-4 w-4", selectedService?.code === svc.code ? "opacity-100 text-primary" : "opacity-0")} />
-                            <div className="flex flex-1 items-center justify-between">
-                              <span>{svc.name}</span>
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+
+            {/* ── Pilih Layanan Populer ── */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <Zap className="h-3.5 w-3.5 text-amber-500" />
+                <label className="text-sm font-bold text-foreground">Pilih Layanan</label>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {POPULAR_SERVICES.map((svc) => {
+                  const isSelected = selectedService?.code === svc.code;
+                  return (
+                    <motion.button
+                      key={svc.code}
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.96 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                      onClick={() => {
+                        setSelectedService(isSelected ? null : svc);
+                      }}
+                      className={cn(
+                        "flex flex-col items-center gap-1 rounded-xl border py-3 px-2 text-xs font-semibold transition-all",
+                        isSelected
+                          ? "border-primary bg-primary/10 text-primary shadow-sm shadow-primary/20"
+                          : "border-border bg-background text-foreground hover:border-primary/40"
+                      )}
+                    >
+                      <span className="text-xl leading-none">{svc.emoji}</span>
+                      <span className="truncate w-full text-center">{svc.name}</span>
+                    </motion.button>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Country picker */}
-            {selectedService && (
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">Negara Server</label>
-                <Popover open={openCountry} onOpenChange={setOpenCountry}>
-                  <PopoverTrigger asChild>
-                    <motion.button
-                      whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
-                      transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                      className="flex w-full items-center justify-between rounded-xl border border-input bg-background px-4 py-3 text-sm font-medium hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
-                      disabled={loadingCountries}
-                    >
-                      {loadingCountries ? (
-                        <span className="text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Memuat negara...</span>
-                      ) : selectedCountry ? (
-                        <span className="font-semibold">{(selectedCountry as any).country_name || selectedCountry.name}</span>
-                      ) : (
-                        <span className="text-muted-foreground">Pilih negara (contoh: Indonesia)...</span>
-                      )}
-                      <Globe className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
-                    </motion.button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0 rounded-xl shadow-xl" align="start">
-                    <Command>
-                      <CommandInput placeholder="Cari negara..." />
-                      <CommandList>
-                        <CommandEmpty>Negara tidak ditemukan.</CommandEmpty>
-                        <CommandGroup>
-                          {Array.isArray(countries) ? countries.map((c: any) => {
-                            const cId = c.country_id ?? c.code ?? c.id;
-                            const cName = c.country_name ?? c.name;
-                            return (
-                              <CommandItem key={cId} value={cName} onSelect={() => { setSelectedCountry(c); setSelectedOperator(null); setOpenCountry(false); }}>
-                                <Check className={cn("mr-2 h-4 w-4", countryId === cId ? "opacity-100 text-primary" : "opacity-0")} />
-                                {cName}
-                              </CommandItem>
-                            );
-                          }) : (
-                            <CommandItem disabled>Data tidak tersedia</CommandItem>
-                          )}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+            {/* ── Pilih Negara Populer ── */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <Globe className="h-3.5 w-3.5 text-blue-500" />
+                <label className="text-sm font-bold text-foreground">Pilih Negara Server</label>
               </div>
-            )}
-
-            {/* Operator picker (optional) */}
-            {selectedService && selectedCountry && operators && operators.length > 0 && (
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">Operator <span className="text-muted-foreground">(opsional)</span></label>
-                <Popover open={openOperator} onOpenChange={setOpenOperator}>
-                  <PopoverTrigger asChild>
+              <div className="grid grid-cols-3 gap-2">
+                {POPULAR_COUNTRIES.map((country) => {
+                  const isSelected = selectedCountry?.id === country.id;
+                  return (
                     <motion.button
-                      whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
-                      transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                      className="flex w-full items-center justify-between rounded-xl border border-input bg-background px-4 py-3 text-sm font-medium hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
-                      disabled={loadingOperators}
-                    >
-                      {loadingOperators ? (
-                        <span className="text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Memuat operator...</span>
-                      ) : selectedOperator ? (
-                        <span className="font-semibold">{(selectedOperator as any).operator_name || selectedOperator.name}</span>
-                      ) : (
-                        <span className="text-muted-foreground">Pilih operator (opsional)...</span>
+                      key={country.id}
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.96 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                      onClick={() => setSelectedCountry(isSelected ? null : country)}
+                      className={cn(
+                        "flex flex-col items-center gap-1 rounded-xl border py-3 px-2 text-xs font-semibold transition-all",
+                        isSelected
+                          ? "border-primary bg-primary/10 text-primary shadow-sm shadow-primary/20"
+                          : "border-border bg-background text-foreground hover:border-primary/40"
                       )}
-                      <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                    >
+                      <span className="text-xl leading-none">{country.flag}</span>
+                      <span className="truncate w-full text-center">{country.name}</span>
                     </motion.button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0 rounded-xl shadow-xl" align="start">
-                    <Command>
-                      <CommandInput placeholder="Cari operator..." />
-                      <CommandList>
-                        <CommandEmpty>Operator tidak ditemukan.</CommandEmpty>
-                        <CommandGroup>
-                          {Array.isArray(operators) ? operators.map((op: any) => {
-                            const opId = op.operator_id ?? op.code ?? op.id;
-                            const opName = op.operator_name ?? op.name;
-                            const selectedOpId = selectedOperator?.code || selectedOperator?.id || (selectedOperator as any)?.operator_id;
-                            return (
-                              <CommandItem key={opId} value={opName} onSelect={() => { setSelectedOperator(op); setOpenOperator(false); }}>
-                                <Check className={cn("mr-2 h-4 w-4", selectedOpId === opId ? "opacity-100 text-primary" : "opacity-0")} />
-                                {opName}
-                              </CommandItem>
-                            );
-                          }) : (
-                            <CommandItem disabled>Data tidak tersedia</CommandItem>
-                          )}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+                  );
+                })}
               </div>
-            )}
+            </div>
 
-            {/* Order summary */}
+            {/* ── Ringkasan Harga ── */}
             <AnimatePresence>
-              {selectedService && totalCost > 0 && (
+              {selectedService && selectedCountry && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
@@ -293,17 +200,38 @@ export default function OTPPage() {
                   transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                   className="overflow-hidden"
                 >
-                  <div className="rounded-xl bg-primary/5 border border-primary/15 p-4">
+                  <div className="rounded-xl bg-primary/5 border border-primary/15 p-4 space-y-2">
                     <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Layanan</span>
+                      <span className="text-sm font-semibold">{selectedService.emoji} {selectedService.name}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Negara</span>
+                      <span className="text-sm font-semibold">{selectedCountry.flag} {selectedCountry.name}</span>
+                    </div>
+                    <div className="border-t border-primary/10 pt-2 flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Total yang dibayar</span>
-                      <span className="text-xl font-black text-primary">{formatRupiah(totalCost)}</span>
+                      {loadingPrice ? (
+                        <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Memuat harga...
+                        </span>
+                      ) : displayPrice > 0 ? (
+                        <div className="text-right">
+                          <span className="text-xl font-black text-primary">{formatRupiah(displayPrice)}</span>
+                          {stockCount > 0 && (
+                            <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">{stockCount} nomor tersedia</p>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-amber-600 font-semibold">Tidak tersedia</span>
+                      )}
                     </div>
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Buy button */}
+            {/* ── Tombol Beli ── */}
             <motion.button
               onClick={handleBuy}
               disabled={!canBuy}
@@ -312,8 +240,17 @@ export default function OTPPage() {
               transition={{ type: "spring", stiffness: 500, damping: 30 }}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              {isBuying ? <><Loader2 className="h-4 w-4 animate-spin" /> Memproses...</> : "Pesan Nomor Sekarang"}
+              {isBuying ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Memproses...</>
+              ) : (
+                "⚡ Pesan Nomor Sekarang"
+              )}
             </motion.button>
+
+            {/* ── Info ── */}
+            <p className="text-center text-[11px] text-muted-foreground/70">
+              Nomor aktif selama 5 menit. Saldo dikembalikan otomatis jika habis waktu.
+            </p>
           </motion.div>
         ) : (
           <motion.div

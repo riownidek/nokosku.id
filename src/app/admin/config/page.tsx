@@ -75,15 +75,16 @@ export default function AdminConfigPage() {
   };
 
   const configFields = [
-    { key: "rumahotp_api_key", label: "RumahOTP API Key", group: "api", placeholder: "Masukkan API Key RumahOTP..." },
-    { key: "pakasir_api_key", label: "Pakasir API Key", group: "api", placeholder: "Masukkan API Key Pakasir..." },
-    { key: "banner_url_1", label: "Banner URL 1", group: "visual", placeholder: "https://..." },
-    { key: "banner_url_2", label: "Banner URL 2", group: "visual", placeholder: "https://..." },
-    { key: "popup_title", label: "Judul Popup Pengumuman", group: "popup", placeholder: "Judul pengumuman..." },
-    { key: "popup_content", label: "Isi Popup Pengumuman", group: "popup", placeholder: "Isi pengumuman..." },
-    { key: "popup_active", label: "Aktifkan Popup? (true/false)", group: "popup", placeholder: "true" },
-    { key: "google_email", label: "Google Email (SMTP)", group: "smtp", placeholder: "email@gmail.com" },
-    { key: "google_app_password", label: "Google App Password", group: "smtp", placeholder: "16 digit sandi aplikasi..." },
+    { key: "herosms_api_key",  label: "Hero-SMS API Key",         group: "api",   placeholder: "Masukkan API Key Hero-SMS..." },
+    { key: "pakasir_api_key",  label: "Pakasir API Key",           group: "api",   placeholder: "Masukkan API Key Pakasir..." },
+    { key: "usd_to_idr_rate",  label: "Kurs USD → IDR",            group: "api",   placeholder: "Contoh: 16000" },
+    { key: "banner_url_1",     label: "Banner URL 1",              group: "visual", placeholder: "https://..." },
+    { key: "banner_url_2",     label: "Banner URL 2",              group: "visual", placeholder: "https://..." },
+    { key: "popup_title",      label: "Judul Popup Pengumuman",    group: "popup",  placeholder: "Judul pengumuman..." },
+    { key: "popup_content",    label: "Isi Popup Pengumuman",      group: "popup",  placeholder: "Isi pengumuman..." },
+    { key: "popup_active",     label: "Aktifkan Popup? (true/false)", group: "popup", placeholder: "true" },
+    { key: "google_email",     label: "Google Email (SMTP)",       group: "smtp",   placeholder: "email@gmail.com" },
+    { key: "google_app_password", label: "Google App Password",    group: "smtp",   placeholder: "16 digit sandi aplikasi..." },
   ];
 
   return (

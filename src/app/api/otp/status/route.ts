@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getOTPStatus, rateLimitDelay } from "@/lib/rumahotp";
+import { getStatus, cancelNumber } from "@/lib/herosms";
 import { sendTelegramMessage, orderCompletedMessage } from "@/lib/telegram";
+
+const TAG = "[OTP Status]";
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -26,14 +28,13 @@ export async function GET(req: Request) {
     if (!order.providerOrderId)
       return NextResponse.json({ order, sms: null });
 
-    // Cek apakah sudah kadaluarsa
+    // Cek apakah sudah kadaluarsa → auto-cancel + refund
     if (order.expiresAt && new Date() > order.expiresAt && order.status === "ACTIVE") {
-      // Auto-cancel dan refund
       try {
-        const { cancelOTPOrder } = await import("@/lib/rumahotp");
-        await rateLimitDelay();
-        await cancelOTPOrder(order.providerOrderId, "cancel");
-      } catch {}
+        await cancelNumber(order.providerOrderId);
+      } catch (err) {
+        console.warn(`${TAG} Hero-SMS cancel on expire failed:`, err);
+      }
 
       await prisma.$transaction([
         prisma.order.update({
@@ -58,17 +59,17 @@ export async function GET(req: Request) {
       return NextResponse.json({ order: { ...order, status: "CANCELLED" }, refunded: true });
     }
 
-    // Polling status SMS dari RumahOTP
-    await rateLimitDelay();
-    const providerStatus = await getOTPStatus(order.providerOrderId);
+    // Polling status SMS dari Hero-SMS
+    // Hero-SMS getStatus mengembalikan { status: "WAIT"|"OK"|"CANCEL"|"TIMEOUT", code? }
+    const providerStatus = await getStatus(order.providerOrderId);
 
-    // Jika SMS diterima
-    if (providerStatus.sms && order.status === "ACTIVE") {
+    // Jika SMS sudah diterima (status OK + ada kode)
+    if (providerStatus.status === "OK" && providerStatus.code && order.status === "ACTIVE") {
       const user = await prisma.user.findUnique({ where: { id: session.user.id } });
 
       await prisma.order.update({
         where: { id: orderId },
-        data: { status: "COMPLETED", resultData: providerStatus.sms },
+        data: { status: "COMPLETED", resultData: providerStatus.code },
       });
 
       sendTelegramMessage(
@@ -78,25 +79,43 @@ export async function GET(req: Request) {
           productName: order.productName,
           category: "OTP",
           targetData: order.targetData,
-          resultData: providerStatus.sms,
+          resultData: providerStatus.code,
           cost: Number(order.cost),
           orderId: order.id,
         })
-      );
+      ).catch((err) => console.error(`${TAG} Telegram failed:`, err));
 
       return NextResponse.json({
-        order: { ...order, status: "COMPLETED", resultData: providerStatus.sms },
-        sms: providerStatus.sms,
+        order: { ...order, status: "COMPLETED", resultData: providerStatus.code },
+        sms: providerStatus.code,
       });
+    }
+
+    // Jika Hero-SMS mengembalikan CANCEL → refund otomatis
+    if (providerStatus.status === "CANCEL" && order.status === "ACTIVE") {
+      await prisma.$transaction([
+        prisma.order.update({ where: { id: orderId }, data: { status: "CANCELLED" } }),
+        prisma.user.update({ where: { id: session.user.id }, data: { balance: { increment: order.cost } } }),
+        prisma.transaction.create({
+          data: {
+            userId: session.user.id,
+            amount: order.cost,
+            type: "REFUND",
+            status: "SUCCESS",
+            note: `Refund OTP dibatalkan provider - ${order.targetData}`,
+          },
+        }),
+      ]);
+      return NextResponse.json({ order: { ...order, status: "CANCELLED" }, refunded: true });
     }
 
     return NextResponse.json({
       order,
-      sms: providerStatus.sms ?? null,
+      sms: providerStatus.code ?? null,
       providerStatus: providerStatus.status,
     });
   } catch (error) {
-    console.error("[OTP Status]", error);
+    console.error(`${TAG}`, error);
     return NextResponse.json({ error: "Gagal mengecek status OTP" }, { status: 500 });
   }
 }

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -37,9 +37,20 @@ export function Sidebar({ role }: { role?: string }) {
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl"
           style={{ background: "linear-gradient(135deg, #4F46E5, #7C3AED)" }}
         >
-          <span className="text-sm font-black text-white">N</span>
+          {/* SIM Card SVG Icon */}
+          <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M7 2H14.5L19 6.5V20C19 21.1 18.1 22 17 22H7C5.9 22 5 21.1 5 20V4C5 2.9 5.9 2 7 2Z"
+              fill="white" fillOpacity="0.9"
+            />
+            <rect x="8" y="11" width="3" height="3" rx="0.5" fill="#4F46E5"/>
+            <rect x="13" y="11" width="3" height="3" rx="0.5" fill="#4F46E5"/>
+            <rect x="8" y="16" width="3" height="3" rx="0.5" fill="#4F46E5"/>
+            <rect x="13" y="16" width="3" height="3" rx="0.5" fill="#4F46E5"/>
+            <path d="M14 2L19 7H15C14.45 7 14 6.55 14 6V2Z" fill="white" fillOpacity="0.5"/>
+          </svg>
         </motion.div>
-        <span className="text-lg font-black tracking-tight text-foreground">NOKOSMU</span>
+        <span className="text-lg font-black tracking-tight text-foreground">NOKOSKU</span>
       </div>
 
       {/* Nav */}

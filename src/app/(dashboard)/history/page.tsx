@@ -1,22 +1,25 @@
 "use client";
 
+import { useState } from "react";
 import useSWR from "swr";
 import { motion } from "framer-motion";
 import { formatRupiah } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, ArrowDownCircle, ArrowUpCircle, RotateCcw, Award } from "lucide-react";
+import { Loader2, ArrowDownCircle, ArrowUpCircle, RotateCcw, Award, XCircle } from "lucide-react";
 import { staggerContainer, staggerItem, SkeletonRow } from "@/components/motion";
+import { toast } from "sonner";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; cls: string }> = {
-    SUCCESS: { label: "Berhasil", cls: "bg-emerald-100 text-emerald-700" },
+    SUCCESS:   { label: "Berhasil", cls: "bg-emerald-100 text-emerald-700" },
     COMPLETED: { label: "Berhasil", cls: "bg-emerald-100 text-emerald-700" },
-    PENDING: { label: "Proses", cls: "bg-amber-100 text-amber-700" },
-    ACTIVE: { label: "Aktif", cls: "bg-blue-100 text-blue-700" },
-    FAILED: { label: "Gagal", cls: "bg-red-100 text-red-700" },
-    CANCELLED: { label: "Batal", cls: "bg-zinc-100 text-zinc-600" },
+    PENDING:   { label: "Proses",   cls: "bg-amber-100 text-amber-700" },
+    ACTIVE:    { label: "Aktif",    cls: "bg-blue-100 text-blue-700" },
+    WAITING:   { label: "Menunggu", cls: "bg-indigo-100 text-indigo-700" },
+    FAILED:    { label: "Gagal",    cls: "bg-red-100 text-red-700" },
+    CANCELLED: { label: "Batal",    cls: "bg-zinc-100 text-zinc-600" },
   };
   const s = map[status] ?? { label: status, cls: "bg-zinc-100 text-zinc-600" };
   return <span className={`inline-flex rounded-md px-2 py-0.5 text-xs font-semibold ${s.cls}`}>{s.label}</span>;
@@ -24,10 +27,10 @@ function StatusBadge({ status }: { status: string }) {
 
 function TypeBadge({ type }: { type: string }) {
   const map: Record<string, { label: string; icon: any; cls: string }> = {
-    DEPOSIT: { label: "Deposit", icon: ArrowDownCircle, cls: "text-emerald-600" },
-    DEDUCTION: { label: "Pembelian", icon: ArrowUpCircle, cls: "text-red-500" },
-    REFUND: { label: "Refund", icon: RotateCcw, cls: "text-blue-600" },
-    COMMISSION: { label: "Komisi", icon: Award, cls: "text-amber-600" },
+    DEPOSIT:    { label: "Deposit",  icon: ArrowDownCircle, cls: "text-emerald-600" },
+    DEDUCTION:  { label: "Pembelian", icon: ArrowUpCircle,  cls: "text-red-500" },
+    REFUND:     { label: "Refund",   icon: RotateCcw,       cls: "text-blue-600" },
+    COMMISSION: { label: "Komisi",   icon: Award,            cls: "text-amber-600" },
   };
   const s = map[type] ?? { label: type, icon: ArrowUpCircle, cls: "text-muted-foreground" };
   return (
@@ -41,8 +44,44 @@ function isCredit(type: string) {
   return type === "DEPOSIT" || type === "REFUND" || type === "COMMISSION";
 }
 
+function CancelOrderButton({ orderId, onSuccess }: { orderId: string; onSuccess: () => void }) {
+  const [loading, setLoading] = useState(false);
+
+  const handleCancel = async () => {
+    if (!confirm("Batalkan pesanan ini? Saldo akan dikembalikan ke akun Anda.")) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/otp/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Gagal membatalkan pesanan");
+      toast.success(`Pesanan dibatalkan. Saldo Anda dikembalikan ${formatRupiah(data.refunded)}`);
+      onSuccess();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <motion.button
+      whileTap={{ scale: 0.95 }}
+      onClick={handleCancel}
+      disabled={loading}
+      className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-bold text-red-600 hover:bg-red-100 disabled:opacity-50 transition-colors shrink-0"
+    >
+      {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
+      Batalkan
+    </motion.button>
+  );
+}
+
 export default function HistoryPage() {
-  const { data: ordersData, isLoading: loadingOrders } = useSWR("/api/orders?limit=100", fetcher);
+  const { data: ordersData, isLoading: loadingOrders, mutate: mutateOrders } = useSWR("/api/orders?limit=100", fetcher);
   const { data: trxData, isLoading: loadingTrx } = useSWR("/api/transactions?limit=100", fetcher);
 
   return (
@@ -64,7 +103,12 @@ export default function HistoryPage() {
             <div className="rounded-2xl border border-border bg-card overflow-hidden">
               <div className="border-b border-border px-5 py-4">
                 <p className="font-bold text-foreground">Riwayat Pesanan</p>
-                <p className="text-sm text-muted-foreground mt-0.5">OTP dan PPOB terbaru</p>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  OTP dan PPOB terbaru
+                  <span className="ml-2 text-xs text-blue-600 font-semibold">
+                    · Pesanan Aktif/Menunggu dapat dibatalkan untuk mendapatkan refund
+                  </span>
+                </p>
               </div>
               {loadingOrders ? (
                 <div className="divide-y divide-border/50">
@@ -82,23 +126,35 @@ export default function HistoryPage() {
                   variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
                   className="divide-y divide-border/50"
                 >
-                  {ordersData.orders.map((o: any) => (
-                    <motion.div
-                      key={o.id}
-                      variants={{ hidden: { opacity: 0, x: -8 }, visible: { opacity: 1, x: 0, transition: { duration: 0.3 } } }}
-                      className="flex items-center gap-4 px-5 py-3.5 hover:bg-muted/30 transition-colors"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-foreground">{o.productName}</p>
-                        <p className="truncate text-xs text-muted-foreground font-mono mt-0.5">{o.targetData}</p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="rounded-md px-1.5 py-0.5 text-[10px] font-bold bg-muted text-muted-foreground">{o.serviceCategory}</span>
-                        <StatusBadge status={o.status} />
-                        <span className="text-sm font-bold">{formatRupiah(o.cost)}</span>
-                      </div>
-                    </motion.div>
-                  ))}
+                  {ordersData.orders.map((o: any) => {
+                    const canCancel = o.serviceCategory === "OTP" &&
+                      (o.status === "ACTIVE" || o.status === "WAITING");
+                    return (
+                      <motion.div
+                        key={o.id}
+                        variants={{ hidden: { opacity: 0, x: -8 }, visible: { opacity: 1, x: 0, transition: { duration: 0.3 } } }}
+                        className="flex items-center gap-4 px-5 py-3.5 hover:bg-muted/30 transition-colors"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-foreground">{o.productName}</p>
+                          <p className="truncate text-xs text-muted-foreground font-mono mt-0.5">{o.targetData}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                          <span className="rounded-md px-1.5 py-0.5 text-[10px] font-bold bg-muted text-muted-foreground">
+                            {o.serviceCategory}
+                          </span>
+                          <StatusBadge status={o.status} />
+                          <span className="text-sm font-bold">{formatRupiah(o.cost)}</span>
+                          {canCancel && (
+                            <CancelOrderButton
+                              orderId={o.id}
+                              onSuccess={() => mutateOrders()}
+                            />
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
                 </motion.div>
               )}
             </div>
