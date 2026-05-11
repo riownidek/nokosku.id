@@ -3,7 +3,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { motion } from "framer-motion";
-import { Edit2, Key, Image, Bell, Loader2, Mail } from "lucide-react";
+import { Edit2, Key, Image, Bell, Loader2, Mail, RefreshCw, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { staggerContainer, staggerItem } from "@/components/motion";
 
@@ -27,6 +27,7 @@ export default function AdminConfigPage() {
   const [markupPercent, setMarkupPercent] = useState("");
   const [commissionPercent, setCommissionPercent] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isSyncing, setIsSyncing]   = useState(false);
 
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [savingConfig, setSavingConfig] = useState("");
@@ -37,6 +38,21 @@ export default function AdminConfigPage() {
     if (m) setMarkupPercent(m.value);
     if (c) setCommissionPercent(c.value);
   }
+
+  const handleSyncRate = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await fetch("/api/admin/sync-rate", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Gagal sinkronisasi");
+      toast.success(data.message ?? "Kurs berhasil diperbarui!");
+      mutateConfigs(); // refresh tampilan nilai di form
+    } catch (err: any) {
+      toast.error(err.message ?? "Gagal sinkronisasi kurs");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const handleUpdateSetting = async (key: string, value: string) => {
     setIsUpdating(true);
@@ -95,6 +111,55 @@ export default function AdminConfigPage() {
       </motion.div>
 
       <div className="grid gap-6 md:grid-cols-2">
+        {/* ── KURS USD → IDR (Real-time) ── */}
+        <motion.div variants={staggerItem}>
+          <Card>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-emerald-500" />
+                <p className="font-bold text-foreground">Kurs USD → IDR (Real-time)</p>
+              </div>
+              <button
+                onClick={handleSyncRate}
+                disabled={isSyncing}
+                className="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
+              >
+                {isSyncing
+                  ? <><Loader2 className="h-3 w-3 animate-spin" /> Menyinkronkan...</>
+                  : <><RefreshCw className="h-3 w-3" /> Sinkronkan Kurs Sekarang</>
+                }
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground mb-3">
+              Nilai kurs diambil otomatis dari <code className="text-xs bg-muted px-1 py-0.5 rounded">open.er-api.com</code> dan di-cache selama 6 jam.
+              Klik &ldquo;Sinkronkan&rdquo; untuk memperbarui manual.
+            </p>
+            {(() => {
+              const rateRecord = appConfigs?.find((c: any) => c.key === "usd_to_idr_rate");
+              const rateValue  = rateRecord?.value ? parseFloat(rateRecord.value) : null;
+              const updatedAt  = rateRecord?.updatedAt ? new Date(rateRecord.updatedAt) : null;
+              return (
+                <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Nilai Kurs Aktif</span>
+                    <span className="text-lg font-black text-emerald-700">
+                      {rateValue
+                        ? `1 USD = Rp ${rateValue.toLocaleString("id-ID")}`
+                        : <span className="text-amber-600 text-sm">Belum ada data (fallback: Rp 16.000)</span>
+                      }
+                    </span>
+                  </div>
+                  {updatedAt && (
+                    <p className="text-xs text-muted-foreground text-right">
+                      Terakhir diperbarui: {updatedAt.toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
+          </Card>
+        </motion.div>
+
         {/* ── PENGATURAN HARGA & KOMISI ── */}
         <motion.div variants={staggerItem} className="space-y-4">
           {[

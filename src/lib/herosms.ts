@@ -4,6 +4,7 @@
  * Base URL: https://hero-sms.com/stubs/handler_api.php
  */
 import { prisma } from "@/lib/prisma";
+export { getUsdToIdrRate, usdToIdr } from "@/lib/exchange";
 
 const BASE_URL = "https://hero-sms.com/stubs/handler_api.php";
 const TAG = "[HeroSMS]";
@@ -156,25 +157,8 @@ export async function cancelNumber(activationId: string): Promise<boolean> {
   return res.includes("ACCESS_CANCEL");
 }
 
-// ─── USD → IDR CONVERSION ────────────────────────────────────────────────────
-
-const DEFAULT_RATE = 16000;
-
-export async function getUsdToIdrRate(): Promise<number> {
-  try {
-    const config = await prisma.appConfig.findFirst({
-      where: { key: "usd_to_idr_rate" },
-    });
-    const rate = parseFloat(config?.value ?? "0");
-    return rate > 0 ? rate : DEFAULT_RATE;
-  } catch {
-    return DEFAULT_RATE;
-  }
-}
-
-export function usdToIdr(usdPrice: number, rate: number): number {
-  return Math.ceil(usdPrice * rate);
-}
+// ─── USD → IDR CONVERSION ─────────────────────────────────────────────────────
+// Didelegasikan ke src/lib/exchange.ts (re-exported di atas)
 
 // ─── SERVICE NAME MAP ─────────────────────────────────────────────────────────
 
