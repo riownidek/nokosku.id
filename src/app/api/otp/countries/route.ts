@@ -1,17 +1,20 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { getOTPCountries } from "@/lib/rumahotp";
+import { getCountries } from "@/lib/herosms";
 
 export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { searchParams } = new URL(req.url);
-  const serviceId = searchParams.get("service") ?? undefined;
-
   try {
-    const countries = await getOTPCountries(serviceId);
+    const rawCountries = await getCountries();
+    const countries = Object.values(rawCountries).map(c => ({
+      id: c.id,
+      name: c.eng,
+    }));
+    
+    countries.sort((a, b) => a.name.localeCompare(b.name));
     return NextResponse.json(countries);
   } catch (error: any) {
     console.error("[OTP Countries]", error);

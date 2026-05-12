@@ -71,6 +71,22 @@ export async function getBalance(): Promise<number> {
   return parseFloat(match[1]);
 }
 
+// ─── GET COUNTRIES ────────────────────────────────────────────────────────────
+
+export interface HeroSMSCountry {
+  id: number;
+  eng: string;
+}
+
+export async function getCountries(): Promise<Record<string, HeroSMSCountry>> {
+  const res = await apiFetch({ action: "getCountries" });
+  try {
+    return JSON.parse(res) as Record<string, HeroSMSCountry>;
+  } catch {
+    throw new Error(`Respons getCountries bukan JSON: ${res.substring(0, 300)}`);
+  }
+}
+
 // ─── GET PRICES ───────────────────────────────────────────────────────────────
 
 export interface HeroSMSCountryPrice {

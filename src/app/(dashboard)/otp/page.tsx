@@ -28,11 +28,16 @@ const POPULAR_COUNTRIES = [
   { id: 2,  name: "Indonesia",  flag: "🇮🇩" },
   { id: 73, name: "Filipina",   flag: "🇵🇭" },
   { id: 46, name: "Malaysia",   flag: "🇲🇾" },
+  { id: 6,  name: "Amerika Serikat", flag: "🇺🇸" },
+  { id: 7,  name: "Inggris",    flag: "🇬🇧" },
+  { id: 83, name: "Brasil",     flag: "🇧🇷" },
+  { id: 32, name: "Kanada",     flag: "🇨🇦" },
+  { id: 10, name: "Vietnam",    flag: "🇻🇳" },
+  { id: 52, name: "Thailand",   flag: "🇹🇭" },
 ];
 
-// Array semua layanan dan negara untuk dropdown "Lainnya"
+// Array semua layanan untuk dropdown "Lainnya"
 const ALL_SERVICES = Object.entries(SERVICE_NAMES).map(([code, name]) => ({ code, name }));
-const ALL_COUNTRIES = Object.entries(COUNTRY_NAMES).map(([id, name]) => ({ id: Number(id), name })).sort((a, b) => a.name.localeCompare(b.name));
 
 export type SelectedService = { code: string; name: string; emoji?: string };
 export type SelectedCountry = { id: number; name: string; flag?: string };
@@ -48,6 +53,9 @@ interface ActiveOrder {
 export default function OTPPage() {
   const { data: config } = useSWR("/api/appconfig/public", fetcher, { revalidateOnFocus: false });
   const markupPercent = parseFloat(config?.markup_percent ?? "0");
+  
+  // Ambil daftar 180+ negara dari API (Fast Response dipertahankan karena berjalan asinkron)
+  const { data: allCountriesList } = useSWR<{id:number; name:string}[]>("/api/otp/countries", fetcher, { revalidateOnFocus: false });
 
   const [selectedService, setSelectedService] = useState<SelectedService | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<SelectedCountry | null>(null);
@@ -247,7 +255,7 @@ export default function OTPPage() {
                   className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/40"
                 >
                   <option value="">-- Negara Lainnya --</option>
-                  {ALL_COUNTRIES.map((c) => (
+                  {allCountriesList?.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
                     </option>
