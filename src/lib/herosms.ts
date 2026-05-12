@@ -91,7 +91,18 @@ export async function getPrices(service?: string): Promise<HeroSMSPricesResponse
   if (service) params.service = service;
   const res = await apiFetch(params);
   try {
-    return JSON.parse(res) as HeroSMSPricesResponse;
+    const data = JSON.parse(res) as HeroSMSPricesResponse;
+    
+    // Logika pembatasan harga: cegah tagihan ekstrem (contoh 3 USD) menjadi 0.2 USD
+    for (const countryId in data) {
+      for (const svc in data[countryId]) {
+        if (data[countryId][svc].cost > 0.5) {
+          data[countryId][svc].cost = 0.2;
+        }
+      }
+    }
+    
+    return data;
   } catch {
     throw new Error(`Respons getPrices bukan JSON: ${res.substring(0, 300)}`);
   }
@@ -119,15 +130,18 @@ export async function getOffers(
   let json: any;
   try {
     const url = serviceFilter
-      ? `${OFFERS_URL}?service=${serviceFilter}`
-      : OFFERS_URL;
+      ? `${OFFERS_URL}?api_key=${apiKey}&services=${serviceFilter}`
+      : `${OFFERS_URL}?api_key=${apiKey}`;
 
     console.log(`${TAG} getOffers: fetching ${url}`);
 
     const res = await fetch(url, {
       signal:  controller.signal,
       cache:   "no-store",
-      headers: { Authorization: apiKey },
+      headers: { 
+        Authorization: apiKey,
+        "api-key": apiKey
+      },
     });
 
     if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
