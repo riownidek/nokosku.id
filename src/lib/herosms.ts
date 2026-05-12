@@ -97,6 +97,81 @@ export async function getPrices(service?: string): Promise<HeroSMSPricesResponse
   }
 }
 
+// ─── GET OFFERS (Modern REST API — harga minimum) ─────────────────────────────
+//
+// Endpoint: GET https://hero-sms.com/api/v1/activations/offers
+// Response: { data: { [serviceCode]: { [countryId]: { prices: { min, max }, counts: { total, retail } } } } }
+//
+// Fungsi ini mengembalikan format yang SAMA dengan HeroSMSPricesResponse agar
+// services/route.ts & buy/route.ts dapat menggunakannya tanpa modifikasi:
+// { [countryId]: { [serviceCode]: { cost: prices.min, count: counts.total } } }
+
+const OFFERS_URL = "https://hero-sms.com/api/v1/activations/offers";
+
+export async function getOffers(
+  serviceFilter?: string
+): Promise<HeroSMSPricesResponse> {
+  const apiKey = await getApiKey();
+
+  const controller = new AbortController();
+  const timeoutId  = setTimeout(() => controller.abort(), 15_000);
+
+  let json: any;
+  try {
+    const url = serviceFilter
+      ? `${OFFERS_URL}?service=${serviceFilter}`
+      : OFFERS_URL;
+
+    console.log(`${TAG} getOffers: fetching ${url}`);
+
+    const res = await fetch(url, {
+      signal:  controller.signal,
+      cache:   "no-store",
+      headers: { Authorization: apiKey },
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    json = await res.json();
+  } catch (err: any) {
+    if (err?.name === "AbortError")
+      throw new Error("Hero-SMS Offers API timeout setelah 15 detik");
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  // ── Normalisasi ke format HeroSMSPricesResponse ───────────────────────────
+  // Input:  { data: { [serviceCode]: { [countryId]: { prices:{min,max}, counts:{total} } } } }
+  // Output: { [countryId]: { [serviceCode]: { cost: prices.min, count: counts.total } } }
+  const raw: Record<string, Record<string, any>> = json?.data ?? json ?? {};
+  const normalized: HeroSMSPricesResponse = {};
+
+  for (const [svcCode, countries] of Object.entries(raw)) {
+    if (serviceFilter && svcCode !== serviceFilter) continue;
+    if (typeof countries !== "object" || countries === null) continue;
+
+    for (const [countryIdStr, info] of Object.entries(countries as Record<string, any>)) {
+      if (typeof info !== "object" || info === null) continue;
+
+      const minCost  = info?.prices?.min ?? info?.price ?? info?.cost ?? 0;
+      const total    = info?.counts?.total ?? info?.count ?? 0;
+
+      if (!normalized[countryIdStr]) normalized[countryIdStr] = {};
+      normalized[countryIdStr][svcCode] = {
+        cost:  Number(minCost),
+        count: Number(total),
+      };
+    }
+  }
+
+  const totalEntries = Object.values(normalized).reduce(
+    (acc, svcMap) => acc + Object.keys(svcMap).length, 0
+  );
+  console.log(`${TAG} getOffers: normalized ${totalEntries} entries (filter=${serviceFilter ?? "all"})`);
+
+  return normalized;
+}
+
 // ─── GET NUMBER (Buy OTP) ─────────────────────────────────────────────────────
 
 export interface HeroSMSOrder {
@@ -114,12 +189,24 @@ const BUY_ERRORS: Record<string, string> = {
   WRONG_COUNTRY: "Kode negara tidak valid.",
 };
 
-export async function getNumber(service: string, country: number): Promise<HeroSMSOrder> {
-  const res = await apiFetch({
+export async function getNumber(
+  service: string,
+  country: number,
+  maxPrice?: number
+): Promise<HeroSMSOrder> {
+  const params: Record<string, string> = {
     action:  "getNumber",
     service,
     country: String(country),
-  });
+  };
+
+  // Kirim maxPrice ke Hero-SMS agar tidak menagih harga yang lebih tinggi
+  if (maxPrice !== undefined && maxPrice > 0) {
+    params.maxPrice = String(maxPrice);
+    console.log(`${TAG} getNumber: maxPrice=${maxPrice} USD`);
+  }
+
+  const res = await apiFetch(params);
 
   // Success: "ACCESS_NUMBER:ACTIVATION_ID:PHONE_NUMBER"
   if (res.startsWith("ACCESS_NUMBER:")) {
