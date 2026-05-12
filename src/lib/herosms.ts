@@ -75,10 +75,15 @@ export async function getBalance(): Promise<number> {
 
 export interface HeroSMSCountryPrice {
   count: number;
-  price: number; // in USD
+  cost: number;          // harga dalam USD (field aktual dari API)
+  physicalCount?: number;
 }
 
-/** { serviceCode: { countryId: { count, price } } } */
+/**
+ * Struktur aktual respons getPrices dari Hero-SMS:
+ * { [countryId]: { [serviceCode]: { cost, count, physicalCount } } }
+ * Contoh: {"2":{"wa":{"cost":3,"count":1854}}}
+ */
 export type HeroSMSPricesResponse = Record<string, Record<string, HeroSMSCountryPrice>>;
 
 export async function getPrices(service?: string): Promise<HeroSMSPricesResponse> {

@@ -55,14 +55,17 @@ export default function OTPPage() {
 
   const { data: serviceData, isLoading: loadingPrice } = useSWR<any[]>(priceKey, fetcher);
 
-  // Cari harga spesifik untuk negara yang dipilih
-  const priceEntry = serviceData?.find(
-    (s) => s.code === selectedService?.code && s.countryId === selectedCountry?.id
+  // priceEntry: { code, countryId, displayPrice, priceUsd, count, ... }
+  const priceEntry   = serviceData?.find(
+    (s: any) => s.code === selectedService?.code && s.countryId === selectedCountry?.id
   );
+  // Harga tersedia jika: data sudah load, priceEntry ada, cost > 0 (bukan undefined/null)
   const displayPrice = priceEntry?.displayPrice ?? 0;
-  const stockCount  = priceEntry?.count ?? 0;
+  const stockCount   = priceEntry?.count ?? 0;
+  const priceAvailable = !loadingPrice && priceEntry !== undefined && priceEntry.priceUsd > 0;
+  const outOfStock     = !loadingPrice && priceEntry !== undefined && stockCount === 0;
 
-  const canBuy = !!(selectedService && selectedCountry && !isBuying && displayPrice > 0);
+  const canBuy = !!(selectedService && selectedCountry && !isBuying && priceAvailable && stockCount > 0);
 
   const handleBuy = useCallback(async () => {
     if (!canBuy || !selectedService || !selectedCountry) return;
@@ -215,15 +218,17 @@ export default function OTPPage() {
                         <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                           <Loader2 className="h-3 w-3 animate-spin" /> Memuat harga...
                         </span>
-                      ) : displayPrice > 0 ? (
+                      ) : outOfStock ? (
+                        <span className="text-sm text-red-500 font-semibold">Stok habis</span>
+                      ) : priceAvailable ? (
                         <div className="text-right">
                           <span className="text-xl font-black text-primary">{formatRupiah(displayPrice)}</span>
-                          {stockCount > 0 && (
-                            <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">{stockCount} nomor tersedia</p>
-                          )}
+                          <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">{stockCount} nomor tersedia</p>
                         </div>
-                      ) : (
+                      ) : priceEntry === undefined && !loadingPrice && serviceData !== undefined ? (
                         <span className="text-sm text-amber-600 font-semibold">Tidak tersedia</span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">-</span>
                       )}
                     </div>
                   </div>

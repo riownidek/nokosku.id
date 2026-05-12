@@ -33,12 +33,14 @@ export async function POST(req: Request) {
     const markupPercent = parseFloat(markupSetting?.value ?? "0");
 
     // ── 2. Ambil harga dari Hero-SMS untuk service+country ini ─────────────────
-    // Harga USD dari getPrices digunakan untuk validasi saldo sebelum beli
+    // Struktur aktual: { [countryId]: { [serviceCode]: { cost, count } } }
     let baseCostUsd = 0;
     try {
       const prices = await getPrices(service);
-      const countryPrices = prices?.[service]?.[String(country)];
-      baseCostUsd = countryPrices?.price ?? 0;
+      // Akses: prices[countryId][serviceCode].cost
+      const priceEntry = prices?.[String(country)]?.[service];
+      baseCostUsd = priceEntry?.cost ?? 0;
+      console.log(`${TAG} Price lookup: country=${country} service=${service} cost=${baseCostUsd} USD`);
     } catch (priceErr) {
       console.warn(`${TAG} Gagal ambil harga dari getPrices, lanjut dengan 0:`, priceErr);
     }
