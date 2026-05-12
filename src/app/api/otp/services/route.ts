@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { getOffers, getPrices, getUsdToIdrRate, usdToIdr, SERVICE_NAMES, COUNTRY_NAMES } from "@/lib/herosms";
+import { getPrices, getUsdToIdrRate, usdToIdr, SERVICE_NAMES, COUNTRY_NAMES } from "@/lib/herosms";
 import { prisma } from "@/lib/prisma";
 import { applyMarkupSync } from "@/lib/utils";
 
@@ -24,15 +24,9 @@ export async function GET(req: Request) {
     ]);
     const markupPercent = parseFloat(markupSetting?.value ?? "0");
 
-    // Ambil harga MINIMUM dari REST API modern Hero-SMS
-    // Fallback ke legacy getPrices jika endpoint baru gagal
-    let rawPrices;
-    try {
-      rawPrices = await getOffers(serviceFilter ?? undefined);
-    } catch (offersErr) {
-      console.warn(`${TAG} getOffers gagal, fallback ke getPrices:`, offersErr);
-      rawPrices = await getPrices(serviceFilter ?? undefined);
-    }
+    // Ambil harga dari Hero-SMS
+    // getPrices mengembalikan: { [countryId]: { [serviceCode]: { cost, count } } }
+    const rawPrices = await getPrices(serviceFilter ?? undefined);
 
     console.log(`${TAG} Raw price keys (first 5):`, Object.keys(rawPrices).slice(0, 5));
 

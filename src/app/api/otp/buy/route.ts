@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getNumber, cancelNumber, getUsdToIdrRate, usdToIdr, getOffers, getPrices } from "@/lib/herosms";
+import { getNumber, cancelNumber, getUsdToIdrRate, usdToIdr, getPrices } from "@/lib/herosms";
 import { applyMarkupSync } from "@/lib/utils";
 import { sendTelegramMessage } from "@/lib/telegram";
 
@@ -32,26 +32,20 @@ export async function POST(req: Request) {
 
     const markupPercent = parseFloat(markupSetting?.value ?? "0");
 
-    // ── 2. Ambil harga MINIMUM dari /activations/offers (primary) ─────────────────
-    // Fallback ke getPrices jika REST endpoint belum tersedia
-    // Struktur normalized: { [countryId]: { [serviceCode]: { cost: prices.min, count } } }
-    let minPriceUsd = 0;
+    // ── 2. Ambil harga dari Hero-SMS untuk service+country ini ─────────────────
+    // Struktur aktual: { [countryId]: { [serviceCode]: { cost, count } } }
+    let baseCostUsd = 0;
     try {
-      let offers;
-      try {
-        offers = await getOffers(service);
-      } catch {
-        console.warn(`${TAG} getOffers gagal, fallback ke getPrices`);
-        offers = await getPrices(service);
-      }
-      const priceEntry = offers?.[String(country)]?.[service];
-      minPriceUsd = priceEntry?.cost ?? 0;
-      console.log(`${TAG} Min price: country=${country} service=${service} minPriceUsd=${minPriceUsd}`);
+      const prices = await getPrices(service);
+      // Akses: prices[countryId][serviceCode].cost
+      const priceEntry = prices?.[String(country)]?.[service];
+      baseCostUsd = priceEntry?.cost ?? 0;
+      console.log(`${TAG} Price lookup: country=${country} service=${service} cost=${baseCostUsd} USD`);
     } catch (priceErr) {
-      console.warn(`${TAG} Gagal ambil harga, lanjut tanpa maxPrice:`, priceErr);
+      console.warn(`${TAG} Gagal ambil harga dari getPrices, lanjut dengan 0:`, priceErr);
     }
 
-    const baseCostIdr = usdToIdr(minPriceUsd, usdRate);
+    const baseCostIdr = usdToIdr(baseCostUsd, usdRate);
     const cost = applyMarkupSync(baseCostIdr, markupPercent);
 
     // ── 3. Validasi saldo sebelum memanggil API (jika harga diketahui) ─────────
@@ -68,9 +62,7 @@ export async function POST(req: Request) {
     // ── 4. Beli nomor dari Hero-SMS ────────────────────────────────────────────
     let heroOrder: { activationId: string; phoneNumber: string };
     try {
-      // Kirim maxPrice = minPriceUsd untuk memastikan Hero-SMS
-      // tidak mengalokasikan nomor dengan harga lebih mahal dari harga minimum
-      heroOrder = await getNumber(String(service), Number(country), minPriceUsd || undefined);
+      heroOrder = await getNumber(String(service), Number(country));
     } catch (apiErr: any) {
       console.error(`${TAG} Hero-SMS getNumber error:`, apiErr?.message);
       return NextResponse.json(
@@ -81,9 +73,8 @@ export async function POST(req: Request) {
 
     const { activationId, phoneNumber } = heroOrder;
 
-    // ── 5. Hitung biaya final berdasarkan harga minimum dari getOffers ──────────
+    // ── 5. Hitung biaya final (jika belum diketahui dari getPrices) ────────────
     const finalCost = cost > 0 ? cost : applyMarkupSync(usdToIdr(0.05, usdRate), markupPercent);
-    const baseCostIdrFinal = usdToIdr(minPriceUsd, usdRate);
 
     // ── 6. Validasi saldo kembali (pakai harga pasti setelah berhasil beli) ────
     const userBalance = Number(user.balance);
@@ -113,7 +104,7 @@ export async function POST(req: Request) {
             productName: serviceName ?? `OTP ${service}`,
             status: "ACTIVE",
             cost: finalCost,
-            baseCost: baseCostIdrFinal,
+            baseCost: baseCostIdr,
             expiresAt,
           },
         }),
