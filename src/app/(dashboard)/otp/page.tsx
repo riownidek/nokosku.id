@@ -9,6 +9,7 @@ import { formatRupiah } from "@/lib/utils";
 import { staggerContainer, staggerItem } from "@/components/motion";
 import { OTPResultCard } from "@/components/otp-result-card";
 import { cn } from "@/lib/utils";
+import { SERVICE_NAMES, COUNTRY_NAMES } from "@/lib/herosms";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -29,6 +30,13 @@ const POPULAR_COUNTRIES = [
   { id: 46, name: "Malaysia",   flag: "🇲🇾" },
 ];
 
+// Array semua layanan dan negara untuk dropdown "Lainnya"
+const ALL_SERVICES = Object.entries(SERVICE_NAMES).map(([code, name]) => ({ code, name }));
+const ALL_COUNTRIES = Object.entries(COUNTRY_NAMES).map(([id, name]) => ({ id: Number(id), name })).sort((a, b) => a.name.localeCompare(b.name));
+
+export type SelectedService = { code: string; name: string; emoji?: string };
+export type SelectedCountry = { id: number; name: string; flag?: string };
+
 interface ActiveOrder {
   id: string;
   number: string;
@@ -41,8 +49,8 @@ export default function OTPPage() {
   const { data: config } = useSWR("/api/appconfig/public", fetcher, { revalidateOnFocus: false });
   const markupPercent = parseFloat(config?.markup_percent ?? "0");
 
-  const [selectedService, setSelectedService] = useState<typeof POPULAR_SERVICES[0] | null>(null);
-  const [selectedCountry, setSelectedCountry] = useState<typeof POPULAR_COUNTRIES[0] | null>(null);
+  const [selectedService, setSelectedService] = useState<SelectedService | null>(null);
+  const [selectedCountry, setSelectedCountry] = useState<SelectedCountry | null>(null);
 
   const [isBuying, setIsBuying] = useState(false);
   const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null);
@@ -160,6 +168,34 @@ export default function OTPPage() {
                   );
                 })}
               </div>
+              <div className="pt-2">
+                <select
+                  value={selectedService?.code ?? ""}
+                  onChange={(e) => {
+                    if (!e.target.value) {
+                      setSelectedService(null);
+                      return;
+                    }
+                    const code = e.target.value;
+                    // Cek apakah ada di popular list agar dapat emojinya
+                    const pop = POPULAR_SERVICES.find(s => s.code === code);
+                    if (pop) {
+                      setSelectedService(pop);
+                    } else {
+                      const name = SERVICE_NAMES[code] ?? code;
+                      setSelectedService({ code, name });
+                    }
+                  }}
+                  className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/40"
+                >
+                  <option value="">-- Layanan Lainnya --</option>
+                  {ALL_SERVICES.map((s) => (
+                    <option key={s.code} value={s.code}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {/* ── Pilih Negara Populer ── */}
@@ -191,6 +227,33 @@ export default function OTPPage() {
                   );
                 })}
               </div>
+              <div className="pt-2">
+                <select
+                  value={selectedCountry?.id ?? ""}
+                  onChange={(e) => {
+                    if (!e.target.value) {
+                      setSelectedCountry(null);
+                      return;
+                    }
+                    const id = Number(e.target.value);
+                    const pop = POPULAR_COUNTRIES.find(c => c.id === id);
+                    if (pop) {
+                      setSelectedCountry(pop);
+                    } else {
+                      const name = COUNTRY_NAMES[id] ?? `Negara ${id}`;
+                      setSelectedCountry({ id, name });
+                    }
+                  }}
+                  className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/40"
+                >
+                  <option value="">-- Negara Lainnya --</option>
+                  {ALL_COUNTRIES.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {/* ── Ringkasan Harga ── */}
@@ -206,11 +269,11 @@ export default function OTPPage() {
                   <div className="rounded-xl bg-primary/5 border border-primary/15 p-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Layanan</span>
-                      <span className="text-sm font-semibold">{selectedService.emoji} {selectedService.name}</span>
+                      <span className="text-sm font-semibold">{selectedService.emoji && `${selectedService.emoji} `}{selectedService.name}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Negara</span>
-                      <span className="text-sm font-semibold">{selectedCountry.flag} {selectedCountry.name}</span>
+                      <span className="text-sm font-semibold">{selectedCountry.flag && `${selectedCountry.flag} `}{selectedCountry.name}</span>
                     </div>
                     <div className="border-t border-primary/10 pt-2 flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Total yang dibayar</span>

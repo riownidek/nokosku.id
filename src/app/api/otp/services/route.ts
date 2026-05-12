@@ -42,10 +42,7 @@ export async function GET(req: Request) {
     for (const [countryIdStr, serviceCodes] of Object.entries(rawPrices)) {
       const countryId = Number(countryIdStr);
 
-      // Jika ada filter service, hanya proses country yang relevan
-      // Optionally hanya tampilkan negara populer saat serviceFilter aktif
-      if (serviceFilter && !SUPPORTED_COUNTRIES.includes(countryId)) continue;
-
+      // Hapus pembatasan negara agar klien bisa melihat harga untuk negara mana pun
       const countryName = COUNTRY_NAMES[countryId] ?? `Negara ${countryId}`;
 
       for (const [svcCode, priceData] of Object.entries(serviceCodes)) {
