@@ -119,15 +119,15 @@ export async function getOffers(
   let json: any;
   try {
     const url = serviceFilter
-      ? `${OFFERS_URL}?service=${serviceFilter}`
-      : OFFERS_URL;
+      ? `${OFFERS_URL}?api_key=${apiKey}&service=${serviceFilter}`
+      : `${OFFERS_URL}?api_key=${apiKey}`;
 
     console.log(`${TAG} getOffers: fetching ${url}`);
 
     const res = await fetch(url, {
       signal:  controller.signal,
       cache:   "no-store",
-      headers: { Authorization: apiKey },
+      headers: { Authorization: `Bearer ${apiKey}` },
     });
 
     if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
