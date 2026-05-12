@@ -609,6 +609,121 @@ function FAQ() {
   );
 }
 
+// ─── Fast Response Section ────────────────────────────────────────────────────
+const FAST_SERVICES = [
+  { emoji: "💬", name: "WhatsApp",  code: "wa" },
+  { emoji: "✈️", name: "Telegram",  code: "tg" },
+  { emoji: "📸", name: "Instagram", code: "ig" },
+];
+
+const FAST_COUNTRIES = [
+  { flag: "🇮🇩", name: "Indonesia" },
+  { flag: "🇲🇾", name: "Malaysia"  },
+  { flag: "🇵🇭", name: "Filipina"  },
+];
+
+// Harga statis (hardcoded) — tampil instan tanpa API
+const FAST_PRICES: Record<string, Record<string, string>> = {
+  wa: { Indonesia: "Rp 3.500", Malaysia: "Rp 5.000", Filipina: "Rp 4.200" },
+  tg: { Indonesia: "Rp 2.800", Malaysia: "Rp 4.500", Filipina: "Rp 3.900" },
+  ig: { Indonesia: "Rp 4.000", Malaysia: "Rp 6.000", Filipina: "Rp 5.200" },
+};
+
+function FastResponse() {
+  const ref = useRef<HTMLDivElement>(null);
+  const isInView = useInView(ref, { once: true, margin: "-80px" });
+
+  return (
+    <section className="py-20 md:py-28 border-y border-border/50" style={{ background: "hsl(var(--background))" }}>
+      <div className="mx-auto max-w-6xl px-6">
+        {/* Header */}
+        <div ref={ref} className="mb-12 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+          <div>
+            <motion.p
+              initial={{ opacity: 0, y: 12 }} animate={isInView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.45 }}
+              className="text-xs font-bold uppercase tracking-widest text-primary mb-2"
+            >
+              Populer Hari Ini
+            </motion.p>
+            <motion.h2
+              initial={{ opacity: 0, y: 16 }} animate={isInView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.45, delay: 0.07 }}
+              className="text-3xl font-black tracking-tight text-foreground md:text-4xl"
+            >
+              Layanan Terlaris
+            </motion.h2>
+          </div>
+          <motion.p
+            initial={{ opacity: 0 }} animate={isInView ? { opacity: 1 } : {}}
+            transition={{ duration: 0.45, delay: 0.15 }}
+            className="text-sm text-muted-foreground md:text-right max-w-xs"
+          >
+            Nomor aktif dalam hitungan detik.<br className="hidden md:block" />
+            Mulai dari harga yang tertera.
+          </motion.p>
+        </div>
+
+        {/* Table — Swiss-style grid */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }} animate={isInView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.5, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          className="overflow-hidden rounded-2xl border border-border"
+        >
+          {/* Header row */}
+          <div className="grid border-b border-border bg-muted/50" style={{ gridTemplateColumns: "1fr repeat(3, 1fr)" }}>
+            <div className="px-5 py-3.5 text-xs font-bold uppercase tracking-wider text-muted-foreground" />
+            {FAST_COUNTRIES.map((c) => (
+              <div key={c.name} className="px-4 py-3.5 text-center">
+                <span className="text-base">{c.flag}</span>
+                <p className="mt-0.5 text-xs font-bold text-foreground">{c.name}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Data rows */}
+          {FAST_SERVICES.map((svc, si) => (
+            <motion.div
+              key={svc.code}
+              initial={{ opacity: 0, x: -12 }} animate={isInView ? { opacity: 1, x: 0 } : {}}
+              transition={{ delay: 0.25 + si * 0.07, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              className="grid border-b border-border/60 last:border-0 hover:bg-muted/30 transition-colors"
+              style={{ gridTemplateColumns: "1fr repeat(3, 1fr)" }}
+            >
+              {/* Service name */}
+              <div className="flex items-center gap-3 px-5 py-4">
+                <span className="text-xl">{svc.emoji}</span>
+                <span className="text-sm font-bold text-foreground">{svc.name}</span>
+              </div>
+
+              {/* Prices */}
+              {FAST_COUNTRIES.map((c) => (
+                <div key={c.name} className="flex items-center justify-center px-4 py-4">
+                  <span className="text-sm font-semibold text-primary tabular-nums">
+                    {FAST_PRICES[svc.code]?.[c.name] ?? "—"}
+                  </span>
+                </div>
+              ))}
+            </motion.div>
+          ))}
+        </motion.div>
+
+        {/* CTA */}
+        <motion.div
+          initial={{ opacity: 0 }} animate={isInView ? { opacity: 1 } : {}}
+          transition={{ duration: 0.4, delay: 0.5 }}
+          className="mt-6 flex items-center justify-between"
+        >
+          <p className="text-xs text-muted-foreground">* Harga bersifat estimasi. Harga final ditampilkan setelah login.</p>
+          <Link href="/register" className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline underline-offset-4">
+            Lihat semua layanan <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
 // ─── CTA Banner ───────────────────────────────────────────────────────────────
 function CTABanner() {
   const ref = useRef<HTMLDivElement>(null);
@@ -735,6 +850,7 @@ export default function LandingPage() {
     <main className="bg-background">
       <Navbar />
       <Hero />
+      <FastResponse />
       <Features />
       <HowItWorks />
       <Testimonials />
