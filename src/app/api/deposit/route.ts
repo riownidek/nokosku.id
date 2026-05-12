@@ -65,20 +65,23 @@ export async function POST(req: Request) {
     if (!paymentMethodRecord)
       return NextResponse.json({ error: `Metode pembayaran "${method}" tidak tersedia atau tidak aktif.` }, { status: 400 });
 
-    // ── Validasi min/max deposit ───────────────────────────────────────────────
-    let minDeposit = 10000;
+    // ── Validasi minimal deposit dari AppConfig ───────────────────────────────
+    let minDeposit = 10_000;
     let maxDeposit = 10_000_000;
     try {
-      const settings = await prisma.setting.findMany({
-        where: { key: { in: ["min_deposit", "max_deposit"] } },
-      });
-      minDeposit = parseInt(settings.find((s) => s.key === "min_deposit")?.value ?? "10000");
-      maxDeposit = parseInt(settings.find((s) => s.key === "max_deposit")?.value ?? "10000000");
-    } catch { /* pakai default jika setting belum ada */ }
+      const [minCfg, maxCfg] = await Promise.all([
+        prisma.appConfig.findFirst({ where: { key: "min_deposit_amount" } }),
+        prisma.appConfig.findFirst({ where: { key: "max_deposit_amount" } }),
+      ]);
+      const parsedMin = parseInt(minCfg?.value ?? "0");
+      const parsedMax = parseInt(maxCfg?.value ?? "0");
+      if (parsedMin > 0) minDeposit = parsedMin;
+      if (parsedMax > 0) maxDeposit = parsedMax;
+    } catch { /* pakai default jika AppConfig belum ada */ }
 
     if (amount < minDeposit || amount > maxDeposit)
       return NextResponse.json({
-        error: `Deposit harus antara ${minDeposit.toLocaleString("id-ID")} - Rp ${maxDeposit.toLocaleString("id-ID")}`,
+        error: `Deposit harus antara Rp ${minDeposit.toLocaleString("id-ID")} - Rp ${maxDeposit.toLocaleString("id-ID")}`,
       }, { status: 400 });
 
     // ── Data user ─────────────────────────────────────────────────────────────

@@ -26,6 +26,7 @@ export default function AdminConfigPage() {
 
   const [markupPercent, setMarkupPercent] = useState("");
   const [commissionPercent, setCommissionPercent] = useState("");
+  const [minDeposit, setMinDeposit] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
   const [isSyncing, setIsSyncing]   = useState(false);
 
@@ -37,6 +38,11 @@ export default function AdminConfigPage() {
     const c = settings.find((s: any) => s.key === "referral_commission_percent");
     if (m) setMarkupPercent(m.value);
     if (c) setCommissionPercent(c.value);
+  }
+  // min_deposit_amount dari AppConfig
+  if (appConfigs && !minDeposit) {
+    const md = appConfigs.find((c: any) => c.key === "min_deposit_amount");
+    if (md) setMinDeposit(md.value);
   }
 
   const handleSyncRate = async () => {
@@ -188,6 +194,29 @@ export default function AdminConfigPage() {
               </div>
             </Card>
           ))}
+
+          {/* Minimal Deposit — disimpan ke AppConfig */}
+          <Card>
+            <p className="font-bold text-foreground">Minimal Deposit (Rp)</p>
+            <p className="text-sm text-muted-foreground mt-0.5 mb-3">Nominal minimum yang dapat di-deposit oleh pengguna. Default: Rp 10.000.</p>
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1 max-w-[180px]">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">Rp</span>
+                <input
+                  type="number" min="1000" step="1000" value={minDeposit}
+                  onChange={(e) => setMinDeposit(e.target.value)}
+                  className="w-full rounded-xl border border-input bg-background pl-9 pr-4 py-2.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+              </div>
+              <button
+                onClick={() => handleSaveConfig("min_deposit_amount", "Minimal Deposit (Rp)", "api")}
+                disabled={savingConfig === "min_deposit_amount"}
+                className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {savingConfig === "min_deposit_amount" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit2 className="h-4 w-4" />} Simpan
+              </button>
+            </div>
+          </Card>
         </motion.div>
 
         {/* ── KREDENSIAL API DLL ── */}

@@ -64,8 +64,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true, verification_pending: true });
     }
 
-    // Status strict per dokumentasi Pakasir: "completed" = sukses
-    const isSuccess = status === "completed";
+    // Status strict per dokumentasi Pakasir: "completed" / "paid" / "success" = sukses
+    const isSuccess = ["completed", "paid", "success"].includes(status);
     const isFailed  = ["failed", "expired", "canceled", "cancelled"].includes(status);
     console.log(`${TAG} Status check: raw=${status} isSuccess=${isSuccess} isFailed=${isFailed}`);
 

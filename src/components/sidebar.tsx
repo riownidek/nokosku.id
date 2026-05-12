@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Smartphone, Wifi, Wallet,
-  History, ShieldCheck, LogOut,
+  History, ShieldCheck, LogOut, Code2,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { signOut } from "next-auth/react";
@@ -16,6 +16,7 @@ const navItems = [
   { href: "/ppob",      label: "Layanan PPOB",  icon: Wifi },
   { href: "/deposit",   label: "Isi Saldo",     icon: Wallet },
   { href: "/history",   label: "Riwayat",       icon: History },
+  { href: "/api-docs",  label: "Dokumentasi API", icon: Code2 },
 ];
 
 export function Sidebar({ role }: { role?: string }) {

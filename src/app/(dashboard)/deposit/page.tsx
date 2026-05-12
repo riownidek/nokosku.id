@@ -45,9 +45,9 @@ function StepIndicator({ step }: { step: number }) {
   );
 }
 
-// ─── STEP 1: Pilih Nominal ────────────────────────────────────────────────────
-function Step1Amount({ amount, setAmount, onNext }: {
-  amount: number; setAmount: (v: number) => void; onNext: () => void;
+// ─── STEP 1: Pilih Nominal ──────────────────────────────────────────────────────────────
+function Step1Amount({ amount, setAmount, onNext, minDeposit }: {
+  amount: number; setAmount: (v: number) => void; onNext: () => void; minDeposit: number;
 }) {
   const [raw, setRaw] = useState(amount > 0 ? String(amount) : "");
 
@@ -62,7 +62,7 @@ function Step1Amount({ amount, setAmount, onNext }: {
       className="space-y-5">
       <div>
         <h2 className="text-lg font-black text-foreground">Pilih Nominal Deposit</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">Minimal Rp 10.000</p>
+        <p className="text-xs text-muted-foreground mt-0.5">Minimal {formatRupiah(minDeposit)}</p>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
@@ -79,13 +79,13 @@ function Step1Amount({ amount, setAmount, onNext }: {
         <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Atau masukkan nominal lain</label>
         <div className="relative">
           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">Rp</span>
-          <input type="text" placeholder="10000" value={raw}
+          <input type="text" placeholder={String(minDeposit)} value={raw}
             onChange={(e) => handleInput(e.target.value)}
             className="w-full rounded-xl border border-input bg-card pl-10 pr-4 py-3 text-lg font-black focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all" />
         </div>
       </div>
 
-      <button onClick={onNext} disabled={amount < 10000}
+      <button onClick={onNext} disabled={amount < minDeposit}
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors">
         Lanjutkan <ChevronRight className="h-4 w-4" />
       </button>
@@ -425,8 +425,12 @@ export default function DepositPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<any>(null);
 
+  // Ambil minDeposit dinamis dari AppConfig
+  const { data: pubConfig } = useSWR("/api/appconfig/public", fetcher, { revalidateOnFocus: false });
+  const minDeposit = parseInt(pubConfig?.min_deposit_amount ?? "0") || 10_000;
+
   const handleConfirm = async () => {
-    if (!method || amount < 10000) return;
+    if (!method || amount < minDeposit) return;
     setIsProcessing(true);
     try {
       const res = await fetch("/api/deposit", {
@@ -465,6 +469,7 @@ export default function DepositPage() {
         <AnimatePresence mode="wait">
           {step === 1 && (
             <Step1Amount key="s1" amount={amount} setAmount={setAmount}
+              minDeposit={minDeposit}
               onNext={() => setStep(2)} />
           )}
           {step === 2 && (
