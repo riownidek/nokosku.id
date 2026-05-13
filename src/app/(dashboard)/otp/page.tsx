@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import useSWR from "swr";
 import { toast } from "sonner";
-import { Loader2, Smartphone, Globe, Zap } from "lucide-react";
+import { Loader2, Smartphone, Globe, Zap, Plus, Minus } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
 import { staggerContainer, staggerItem } from "@/components/motion";
 import { OTPResultCard } from "@/components/otp-result-card";
@@ -25,15 +25,15 @@ const POPULAR_SERVICES = [
 ];
 
 const POPULAR_COUNTRIES = [
-  { id: 2,  name: "Indonesia",  flag: "🇮🇩" },
-  { id: 73, name: "Filipina",   flag: "🇵🇭" },
-  { id: 46, name: "Malaysia",   flag: "🇲🇾" },
+  { id: 2,  name: "Indonesia",       flag: "🇮🇩" },
+  { id: 73, name: "Filipina",        flag: "🇵🇭" },
+  { id: 46, name: "Malaysia",        flag: "🇲🇾" },
   { id: 6,  name: "Amerika Serikat", flag: "🇺🇸" },
-  { id: 7,  name: "Inggris",    flag: "🇬🇧" },
-  { id: 83, name: "Brasil",     flag: "🇧🇷" },
-  { id: 32, name: "Kanada",     flag: "🇨🇦" },
-  { id: 10, name: "Vietnam",    flag: "🇻🇳" },
-  { id: 52, name: "Thailand",   flag: "🇹🇭" },
+  { id: 7,  name: "Inggris",         flag: "🇬🇧" },
+  { id: 83, name: "Brasil",          flag: "🇧🇷" },
+  { id: 32, name: "Kanada",          flag: "🇨🇦" },
+  { id: 36, name: "Vietnam",         flag: "🇻🇳" }, // ✅ ID 36 (bukan 10)
+  { id: 44, name: "Thailand",        flag: "🇹🇭" }, // ✅ ID 44 (bukan 52)
 ];
 
 // Array semua layanan untuk dropdown "Lainnya"
@@ -59,9 +59,10 @@ export default function OTPPage() {
 
   const [selectedService, setSelectedService] = useState<SelectedService | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<SelectedCountry | null>(null);
+  const [quantity, setQuantity] = useState(1);
 
   const [isBuying, setIsBuying] = useState(false);
-  const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null);
+  const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([]);
 
   // Fetch harga untuk service + country yang dipilih dari Hero-SMS via backend
   const priceKey =
@@ -82,41 +83,65 @@ export default function OTPPage() {
   const outOfStock     = !loadingPrice && priceEntry !== undefined && stockCount === 0;
 
   const canBuy = !!(selectedService && selectedCountry && !isBuying && priceAvailable && stockCount > 0);
+  // Total biaya untuk quantity yang dipilih
+  const totalPrice = displayPrice * quantity;
 
   const handleBuy = useCallback(async () => {
     if (!canBuy || !selectedService || !selectedCountry) return;
     setIsBuying(true);
+    const successOrders: ActiveOrder[] = [];
+    const productName = `${selectedService.name} (${selectedCountry.name})`;
     try {
-      const res = await fetch("/api/otp/buy", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          service:     selectedService.code,
-          country:     selectedCountry.id,
-          serviceName: `${selectedService.name} (${selectedCountry.name})`,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Gagal membeli nomor OTP");
+      // Beli nomor secara berurutan sesuai quantity (parallel bisa menyebabkan race condition saldo)
+      for (let i = 0; i < quantity; i++) {
+        try {
+          const res = await fetch("/api/otp/buy", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              service:     selectedService.code,
+              country:     selectedCountry.id,
+              serviceName: productName,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            toast.error(`Slot ${i + 1}: ${data.error ?? "Gagal membeli nomor"}`);
+            break; // hentikan jika satu slot gagal (kemungkinan saldo habis)
+          }
+          const ord = data.order;
+          if (!ord?.id || !ord?.number) {
+            toast.error(`Slot ${i + 1}: Respons API tidak valid`);
+            break;
+          }
+          successOrders.push({
+            id:          ord.id,
+            number:      ord.number,
+            productName,
+            cost:        ord.cost ?? displayPrice,
+            expiresAt:   ord.expiresAt ?? new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+          });
+        } catch (err: any) {
+          toast.error(`Slot ${i + 1}: ${err.message}`);
+          break;
+        }
+      }
 
-      const ord = data.order;
-      if (!ord?.id || !ord?.number) throw new Error("Respons API tidak valid. Saldo Anda tidak terpotong.");
-
-      setActiveOrder({
-        id:          ord.id,
-        number:      ord.number,
-        productName: `${selectedService.name} (${selectedCountry.name})`,
-        cost:        ord.cost ?? displayPrice,
-        expiresAt:   ord.expiresAt ?? new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-      });
-      setSelectedService(null);
-      setSelectedCountry(null);
-    } catch (err: any) {
-      toast.error(err.message);
+      if (successOrders.length > 0) {
+        setActiveOrders(prev => [...prev, ...successOrders]);
+        toast.success(`${successOrders.length} nomor berhasil dipesan!`);
+        setSelectedService(null);
+        setSelectedCountry(null);
+        setQuantity(1);
+      }
     } finally {
       setIsBuying(false);
     }
-  }, [canBuy, selectedService, selectedCountry, displayPrice]);
+  }, [canBuy, selectedService, selectedCountry, displayPrice, quantity]);
+
+  const removeOrder = useCallback((orderId: string) => {
+    setActiveOrders(prev => prev.filter(o => o.id !== orderId));
+  }, []);
 
   return (
     <motion.div initial="hidden" animate="visible" variants={staggerContainer} className="space-y-5 max-w-lg">
@@ -135,7 +160,7 @@ export default function OTPPage() {
       </motion.div>
 
       <AnimatePresence mode="wait">
-        {!activeOrder ? (
+        {(
           <motion.div
             key="form"
             initial={{ opacity: 0, y: 10 }}
@@ -307,6 +332,38 @@ export default function OTPPage() {
               )}
             </AnimatePresence>
 
+            {/* ── Quantity Selector ── */}
+            {priceAvailable && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-bold text-foreground">Jumlah Nomor</label>
+                <div className="flex items-center gap-3">
+                  <motion.button
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setQuantity(q => Math.max(1, q - 1))}
+                    disabled={quantity <= 1}
+                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-background text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </motion.button>
+                  <span className="w-8 text-center text-lg font-black text-foreground">{quantity}</span>
+                  <motion.button
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setQuantity(q => Math.min(5, q + 1))}
+                    disabled={quantity >= Math.min(5, stockCount)}
+                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-background text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </motion.button>
+                  <span className="text-sm text-muted-foreground">maks. {Math.min(5, stockCount)} slot</span>
+                  {quantity > 1 && (
+                    <span className="ml-auto text-sm font-bold text-primary">
+                      Total: {formatRupiah(totalPrice)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* ── Tombol Beli ── */}
             <motion.button
               onClick={handleBuy}
@@ -317,9 +374,9 @@ export default function OTPPage() {
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               {isBuying ? (
-                <><Loader2 className="h-4 w-4 animate-spin" /> Memproses...</>
+                <><Loader2 className="h-4 w-4 animate-spin" /> Memproses {quantity} nomor...</>
               ) : (
-                "⚡ Pesan Nomor Sekarang"
+                `⚡ Pesan ${quantity > 1 ? `${quantity} Nomor` : "Nomor"} Sekarang`
               )}
             </motion.button>
 
@@ -328,27 +385,46 @@ export default function OTPPage() {
               Nomor aktif selama 5 menit. Saldo dikembalikan otomatis jika habis waktu.
             </p>
           </motion.div>
-        ) : (
-          <motion.div
-            key="order-result"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ type: "spring", stiffness: 350, damping: 28 }}
-            className="max-w-md"
-          >
-            <OTPResultCard
-              orderId={activeOrder.id}
-              number={activeOrder.number}
-              productName={activeOrder.productName}
-              cost={activeOrder.cost}
-              expiresAt={activeOrder.expiresAt}
-              onCancel={() => setActiveOrder(null)}
-              onComplete={() => setActiveOrder(null)}
-            />
-          </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── Daftar Pesanan Aktif (multi-order) ── */}
+      {activeOrders.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="space-y-3"
+        >
+          {activeOrders.length > 1 && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-bold text-foreground">{activeOrders.length} Pesanan Aktif</p>
+              <button
+                onClick={() => setActiveOrders([])}
+                className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+              >
+                Tutup Semua
+              </button>
+            </div>
+          )}
+          <div className={cn(
+            "grid gap-3",
+            activeOrders.length > 1 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"
+          )}>
+            {activeOrders.map((order) => (
+              <OTPResultCard
+                key={order.id}
+                orderId={order.id}
+                number={order.number}
+                productName={order.productName}
+                cost={order.cost}
+                expiresAt={order.expiresAt}
+                onCancel={() => removeOrder(order.id)}
+                onComplete={() => removeOrder(order.id)}
+              />
+            ))}
+          </div>
+        </motion.div>
+      )}
     </motion.div>
   );
 }

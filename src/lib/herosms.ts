@@ -328,6 +328,7 @@ export const COUNTRY_NAMES: Record<number, string> = {
   7:  "Inggris",
   16: "India",
   22: "Cina",
+  32: "Kanada",
   36: "Vietnam",
   44: "Thailand",
   83: "Brasil",

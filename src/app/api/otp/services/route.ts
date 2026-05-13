@@ -6,8 +6,6 @@ import { applyMarkupSync } from "@/lib/utils";
 
 const TAG = "[OTP Services]";
 
-// Daftar country ID yang didukung di quick-select
-const SUPPORTED_COUNTRIES = [2, 73, 46]; // Indonesia, Filipina, Malaysia
 
 export async function GET(req: Request) {
   const session = await auth();
