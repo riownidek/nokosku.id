@@ -20,7 +20,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "NOKOSKU — Platform OTP & PPOB Premium",
+    default: "NOKOSKU ï¿½ Platform OTP & PPOB Premium",
     template: "%s | NOKOSKU",
   },
   description:
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "id_ID",
-    title: "NOKOSKU — Platform OTP & PPOB Premium",
+    title: "NOKOSKU ï¿½ Platform OTP & PPOB Premium",
     description: "Virtual number OTP dan PPOB tercepat. 1700+ layanan, harga bersaing.",
     siteName: "NOKOSKU",
   },

@@ -56,7 +56,7 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
             </p>
           </div>
 
-          {/* Stats card — glassmorphism */}
+          {/* Stats card ï¿½ glassmorphism */}
           <div
             className="rounded-2xl p-5"
             style={{
@@ -80,7 +80,7 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
           </div>
         </div>
 
-        <p className="relative text-xs text-white/20">© {new Date().getFullYear()} NOKOSKU. Hak cipta dilindungi.</p>
+        <p className="relative text-xs text-white/20">ï¿½ {new Date().getFullYear()} NOKOSKU. Hak cipta dilindungi.</p>
       </div>
 
       {/* -- Right form panel -- */}
