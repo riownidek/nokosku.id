@@ -30,12 +30,41 @@ export async function GET(req: Request) {
 
     // Cek apakah sudah kadaluarsa → auto-cancel + refund
     if (order.expiresAt && new Date() > order.expiresAt && order.status === "ACTIVE") {
+      let cancelledAtProvider = false;
       try {
-        await cancelNumber(order.providerOrderId);
+        cancelledAtProvider = await cancelNumber(order.providerOrderId);
       } catch (err) {
         console.warn(`${TAG} Hero-SMS cancel on expire failed:`, err);
       }
 
+      // Jika provider menolak (contoh: status sedang dikirim, atau layanan tak bisa di-cancel telat), 
+      // kita harus periksa status terakhir. Jika provider mengenakan biaya, kita tidak bisa refund.
+      if (!cancelledAtProvider) {
+        console.warn(`${TAG} Provider refused expiration cancellation for ${order.providerOrderId}`);
+        // Kita biarkan status menjadi "COMPLETED" tanpa refund jika dianggap berhasil oleh provider?
+        // Tapi kita tidak tahu. Kita poll lagi status terakhir.
+        const finalStatus = await getStatus(order.providerOrderId);
+        if (finalStatus.status === "OK" && finalStatus.code) {
+          // Ternyata ada kodenya, anggap complete
+          await prisma.order.update({
+            where: { id: orderId },
+            data: { status: "COMPLETED", resultData: finalStatus.code },
+          });
+          return NextResponse.json({
+            order: { ...order, status: "COMPLETED", resultData: finalStatus.code },
+            sms: finalStatus.code,
+          });
+        } else {
+          // Provider tidak kasih kode, tapi tidak mau cancel (mungkin uang hangus di provider)
+          await prisma.order.update({
+            where: { id: orderId },
+            data: { status: "CANCELLED" }, // Anggap cancelled lokal tapi TANPA refund karena provider menolak
+          });
+          return NextResponse.json({ order: { ...order, status: "CANCELLED" }, refunded: false });
+        }
+      }
+
+      // Jika pembatalan berhasil di provider, proses refund
       await prisma.$transaction([
         prisma.order.update({
           where: { id: orderId },

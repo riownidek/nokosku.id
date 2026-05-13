@@ -99,7 +99,7 @@ export async function POST(req: Request) {
     }
 
     // ── 7. Potong saldo + simpan order secara atomik ───────────────────────────
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 menit
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 menit
 
     let order: any;
     try {
