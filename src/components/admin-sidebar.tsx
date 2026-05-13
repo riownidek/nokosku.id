@@ -33,7 +33,7 @@ export function AdminSidebar() {
           <ShieldCheck className="h-5 w-5 text-white" />
         </div>
         <div>
-          <span className="block text-base font-black tracking-tight">NOKOSMU ADMIN</span>
+          <span className="block text-base font-black tracking-tight">NOKOSKU ADMIN</span>
           <span className="block text-[10px] text-red-400 font-bold tracking-widest uppercase">Mode Pengelola</span>
         </div>
       </div>

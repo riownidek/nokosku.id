@@ -1,4 +1,4 @@
-// Prisma schema — NOKOSMU Platform
+// Prisma schema — NOKOSKU Platform
 // PostgreSQL (Supabase) — Production
 
 generator client {

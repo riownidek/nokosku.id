@@ -248,7 +248,7 @@ function Step3Confirm({ amount, method, onConfirm, onBack, isProcessing }: {
           </div>
         </div>
 
-        <p className="text-center text-[10px] text-muted-foreground">Gateway pembayaran oleh NOKOSMU</p>
+        <p className="text-center text-[10px] text-muted-foreground">Gateway pembayaran oleh NOKOSKU</p>
       </div>
 
       <div className="flex gap-3">
@@ -328,7 +328,7 @@ function Step4Payment({ result, amount, method, onReset }: {
               </div>
               <span className="text-white/70 text-xs">GPN</span>
             </div>
-            <p className="text-white font-bold text-sm mb-4">{result?.nmid ?? "NOKOSMU"}</p>
+            <p className="text-white font-bold text-sm mb-4">{result?.nmid ?? "NOKOSKU"}</p>
             <div className="bg-white rounded-2xl p-4 mx-auto inline-block">
               <QRCode value={result.qrUrl} size={192} style={{ height: "auto", maxWidth: "100%", width: "100%" }} viewBox={`0 0 192 192`} />
             </div>

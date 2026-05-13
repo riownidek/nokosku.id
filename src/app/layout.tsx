@@ -1,4 +1,4 @@
-ï»¿import type { Metadata, Viewport } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "sonner";
@@ -20,20 +20,20 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "NOKOSMU â€” Platform OTP & PPOB Premium",
-    template: "%s | NOKOSMU",
+    default: "NOKOSKU — Platform OTP & PPOB Premium",
+    template: "%s | NOKOSKU",
   },
   description:
     "Solusi virtual number OTP dan produk PPOB tercepat untuk kebutuhan verifikasi digital Anda. Lebih dari 1.700 layanan tersedia dengan harga terbaik.",
-  keywords: ["OTP", "PPOB", "virtual number", "WhatsApp OTP", "pulsa", "token PLN", "NOKOSMU"],
-  authors: [{ name: "NOKOSMU Team" }],
-  creator: "NOKOSMU",
+  keywords: ["OTP", "PPOB", "virtual number", "WhatsApp OTP", "pulsa", "token PLN", "NOKOSKU"],
+  authors: [{ name: "NOKOSKU Team" }],
+  creator: "NOKOSKU",
   openGraph: {
     type: "website",
     locale: "id_ID",
-    title: "NOKOSMU â€” Platform OTP & PPOB Premium",
+    title: "NOKOSKU — Platform OTP & PPOB Premium",
     description: "Virtual number OTP dan PPOB tercepat. 1700+ layanan, harga bersaing.",
-    siteName: "NOKOSMU",
+    siteName: "NOKOSKU",
   },
   robots: { index: true, follow: true },
 };

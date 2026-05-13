@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
@@ -79,7 +79,7 @@ export default function RegisterPage() {
           <UserPlus className="h-6 w-6 text-primary" />
         </div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          Buat Akun NOKOSMU
+          Buat Akun NOKOSKU
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Sudah punya akun?{" "}
@@ -196,7 +196,7 @@ export default function RegisterPage() {
           <Link href="/terms" className="text-primary hover:underline">
             Syarat & Ketentuan
           </Link>{" "}
-          NOKOSMU.
+          NOKOSKU.
         </p>
       </form>
     </div>

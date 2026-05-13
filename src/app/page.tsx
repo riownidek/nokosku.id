@@ -26,7 +26,7 @@ const steps = [
 ];
 
 const faqs = [
-  { q: "Apa itu NOKOSMU?", a: "NOKOSMU adalah platform layanan nomor virtual OTP dan produk digital (PPOB) yang memungkinkan Anda memverifikasi akun di berbagai platform tanpa menggunakan nomor pribadi." },
+  { q: "Apa itu NOKOSKU?", a: "NOKOSKU adalah platform layanan nomor virtual OTP dan produk digital (PPOB) yang memungkinkan Anda memverifikasi akun di berbagai platform tanpa menggunakan nomor pribadi." },
   { q: "Berapa lama kode OTP tiba?", a: "Umumnya kurang dari 60 detik. Jika dalam 15 menit belum diterima, saldo Anda akan dikembalikan secara otomatis." },
   { q: "Bagaimana cara mengisi saldo?", a: "Anda dapat mengisi saldo melalui QRIS atau Virtual Account dari berbagai bank. Konfirmasi deposit real-time setelah pembayaran berhasil." },
   { q: "Apakah ada sistem referral?", a: "Ya! Setiap pengguna mendapat kode referral unik. Anda mendapat komisi setiap kali referral Anda melakukan deposit." },
@@ -35,7 +35,7 @@ const faqs = [
 ];
 
 const testimonials = [
-  { name: "Reza P.", role: "Developer", text: "NOKOSMU jauh lebih mudah dari kompetitor. Tidak perlu API key untuk mulai, langsung bisa pakai." },
+  { name: "Reza P.", role: "Developer", text: "NOKOSKU jauh lebih mudah dari kompetitor. Tidak perlu API key untuk mulai, langsung bisa pakai." },
   { name: "Sarah M.", role: "Digital Marketer", text: "Kode OTP datang cepat sekali. Pekerjaan saya yang butuh banyak akun jadi sangat terbantu." },
   { name: "Budi K.", role: "Entrepreneur", text: "Harga bersaing dan saldo balik otomatis kalau gagal. Sudah pakai berbulan-bulan tanpa masalah." },
 ];
@@ -129,7 +129,7 @@ function Navbar() {
           >
             <span className="text-sm font-black text-primary-foreground">N</span>
           </motion.div>
-          <span className="text-xl font-black tracking-tight text-foreground">NOKOSMU</span>
+          <span className="text-xl font-black tracking-tight text-foreground">NOKOSKU</span>
         </Link>
 
         <div className="hidden items-center gap-8 md:flex">
@@ -413,7 +413,7 @@ function Features() {
             Keunggulan Platform
           </motion.p>
           <motion.h2 initial={{ opacity: 0, y: 20 }} animate={isInView ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.5, delay: 0.1 }} className="text-4xl font-black tracking-tight text-foreground md:text-5xl">
-            Mengapa Pilih NOKOSMU?
+            Mengapa Pilih NOKOSKU?
           </motion.h2>
           <motion.p initial={{ opacity: 0, y: 20 }} animate={isInView ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.5, delay: 0.2 }} className="mt-4 text-muted-foreground max-w-xl mx-auto">
             Dirancang untuk kecepatan, keandalan, dan kemudahan penggunaan.
@@ -805,7 +805,7 @@ function Footer() {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
                 <span className="text-sm font-black text-primary-foreground">N</span>
               </div>
-              <span className="text-xl font-black text-foreground">NOKOSMU</span>
+              <span className="text-xl font-black text-foreground">NOKOSKU</span>
             </div>
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground">
               Platform OTP & PPOB premium. Lebih dari 1.700 layanan dengan harga terbaik dan jaminan refund otomatis.
@@ -836,7 +836,7 @@ function Footer() {
         </div>
 
         <div className="mt-12 border-t border-border pt-6 flex items-center justify-between text-xs text-muted-foreground">
-          <span>© {new Date().getFullYear()} NOKOSMU. Hak cipta dilindungi.</span>
+          <span>© {new Date().getFullYear()} NOKOSKU. Hak cipta dilindungi.</span>
           <span className="hidden md:block">Made with ❤️ in Indonesia</span>
         </div>
       </div>

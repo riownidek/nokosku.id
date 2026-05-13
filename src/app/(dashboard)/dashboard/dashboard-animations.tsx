@@ -80,7 +80,7 @@ function BannerCarousel({ bannerUrls, greet, userName, balance }: {
             <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/[0.07]" />
             <div className="absolute right-12 bottom-4 h-24 w-24 rounded-full bg-white/[0.05]" />
             <p className="relative text-[10px] font-bold text-white/60 uppercase tracking-widest">
-              NOKOSMU — {LABELS[active % 3]}
+              NOKOSKU — {LABELS[active % 3]}
             </p>
             <div className="relative">
               <p className="text-[10px] text-white/50 mb-0.5">Saldo tersedia</p>

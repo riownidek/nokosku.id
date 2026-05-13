@@ -60,7 +60,7 @@ export async function POST(req: Request) {
     const mailBody = `saat saya login akun saya ada teks login tidak tersedia ${targetNumber.trim()}`;
 
     await transporter.sendMail({
-      from: `"NOKOSMU Support" <${activeSmtp.email}>`,
+      from: `"NOKOSKU Support" <${activeSmtp.email}>`,
       to: "support@support.whatsapp.com",
       subject: "Account Login Issue Report",
       text: mailBody,

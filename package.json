@@ -1,5 +1,5 @@
 {
-  "name": "nokosmu.id",
+  "name": "NOKOSKU.id",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -32,6 +32,7 @@
     "@radix-ui/react-switch": "^1.2.6",
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@supabase/supabase-js": "^2.105.4",
     "@tanstack/react-table": "^8.21.3",
     "@types/nodemailer": "^8.0.0",
     "bcryptjs": "^3.0.3",

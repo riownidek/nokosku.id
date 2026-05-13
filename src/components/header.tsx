@@ -43,7 +43,7 @@ export function Header() {
         >
           <span className="text-xs font-black text-white">N</span>
         </div>
-        <span className="text-sm font-black tracking-tight text-foreground">NOKOSMU</span>
+        <span className="text-sm font-black tracking-tight text-foreground">NOKOSKU</span>
       </div>
 
       {/* Left: empty on desktop (sidebar has logo) */}

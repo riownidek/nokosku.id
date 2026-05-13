@@ -73,7 +73,7 @@ export default function LoginPage() {
         >
           <ShieldCheck className="h-6 w-6 text-primary-foreground" />
         </motion.div>
-        <h1 className="text-2xl font-black tracking-tight text-foreground">Masuk ke NOKOSMU</h1>
+        <h1 className="text-2xl font-black tracking-tight text-foreground">Masuk ke NOKOSKU</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
           Belum punya akun?{" "}
           <Link href="/register" className="font-semibold text-primary underline-offset-4 hover:underline">

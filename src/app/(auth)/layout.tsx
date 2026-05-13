@@ -1,4 +1,4 @@
-﻿import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import Link from "next/link";
@@ -10,7 +10,7 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
 
   return (
     <div className="min-h-screen flex">
-      {/* ── Left decorative panel ── */}
+      {/* -- Left decorative panel -- */}
       <div
         className="hidden lg:flex lg:w-[45%] xl:w-[42%] flex-col justify-between p-10 relative overflow-hidden"
         style={{
@@ -40,7 +40,7 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
             >
               <span className="text-sm font-black text-white">N</span>
             </div>
-            <span className="text-xl font-black tracking-tight text-white">NOKOSMU</span>
+            <span className="text-xl font-black tracking-tight text-white">NOKOSKU</span>
           </Link>
         </div>
 
@@ -56,7 +56,7 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
             </p>
           </div>
 
-          {/* Stats card — glassmorphism */}
+          {/* Stats card � glassmorphism */}
           <div
             className="rounded-2xl p-5"
             style={{
@@ -80,10 +80,10 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
           </div>
         </div>
 
-        <p className="relative text-xs text-white/20">© {new Date().getFullYear()} NOKOSMU. Hak cipta dilindungi.</p>
+        <p className="relative text-xs text-white/20">� {new Date().getFullYear()} NOKOSKU. Hak cipta dilindungi.</p>
       </div>
 
-      {/* ── Right form panel ── */}
+      {/* -- Right form panel -- */}
       <div
         className="flex flex-1 flex-col items-center justify-center px-6 py-12"
         style={{ background: "hsl(var(--background))" }}

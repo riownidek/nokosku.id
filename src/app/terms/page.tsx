@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { ArrowLeft, ChevronRight } from "lucide-react";
 
 export default function TermsPage() {
@@ -57,13 +57,13 @@ export default function TermsPage() {
           <article className="prose prose-zinc max-w-none prose-headings:font-bold prose-h2:text-2xl prose-h2:mt-12 prose-h2:first:mt-0 prose-h2:tracking-tight prose-a:text-primary">
             
             <p className="lead text-lg text-muted-foreground">
-              Selamat datang di NOKOSMU. Dengan mendaftar dan menggunakan layanan dari NOKOSMU, Anda menyatakan telah membaca, memahami, dan menyetujui seluruh Syarat dan Ketentuan di bawah ini. Jika Anda tidak menyetujui syarat-syarat ini, harap tidak menggunakan layanan kami.
+              Selamat datang di NOKOSKU. Dengan mendaftar dan menggunakan layanan dari NOKOSKU, Anda menyatakan telah membaca, memahami, dan menyetujui seluruh Syarat dan Ketentuan di bawah ini. Jika Anda tidak menyetujui syarat-syarat ini, harap tidak menggunakan layanan kami.
             </p>
 
             <h2 id="definisi">1. Definisi</h2>
             <ul>
-              <li><strong>NOKOSMU</strong> adalah platform penyedia layanan nomor virtual OTP dan produk digital (PPOB).</li>
-              <li><strong>Pengguna</strong> adalah pihak yang telah terdaftar dan memiliki akun aktif di platform NOKOSMU.</li>
+              <li><strong>NOKOSKU</strong> adalah platform penyedia layanan nomor virtual OTP dan produk digital (PPOB).</li>
+              <li><strong>Pengguna</strong> adalah pihak yang telah terdaftar dan memiliki akun aktif di platform NOKOSKU.</li>
               <li><strong>API</strong> adalah antarmuka pemrograman aplikasi yang disediakan untuk integrasi layanan B2B.</li>
             </ul>
 
@@ -79,12 +79,12 @@ export default function TermsPage() {
 
             <h2 id="saldo">3. Saldo, Deposit & Pembayaran</h2>
             <p>
-              Seluruh transaksi di NOKOSMU menggunakan sistem saldo prabayar (deposit).
+              Seluruh transaksi di NOKOSKU menggunakan sistem saldo prabayar (deposit).
             </p>
             <ul>
               <li>Minimum deposit adalah <strong>Rp 10.000</strong>.</li>
               <li>Pembayaran dilakukan melalui gateway yang tersedia (QRIS, Virtual Account).</li>
-              <li>Saldo yang telah disetorkan ke akun NOKOSMU <strong>tidak dapat ditarik kembali (non-refundable)</strong> ke rekening bank Anda dengan alasan apapun.</li>
+              <li>Saldo yang telah disetorkan ke akun NOKOSKU <strong>tidak dapat ditarik kembali (non-refundable)</strong> ke rekening bank Anda dengan alasan apapun.</li>
             </ul>
 
             <h2 id="refund">4. Kebijakan Pengembalian Dana (Refund) Layanan</h2>
@@ -99,12 +99,12 @@ export default function TermsPage() {
 
             <h2 id="privasi">5. Privasi dan Keamanan Data</h2>
             <p>
-              Kami sangat menghargai privasi Anda. NOKOSMU menggunakan enkripsi <em>end-to-end</em> untuk kata sandi dan seluruh transaksi. Kami tidak akan pernah menyimpan, membagikan, atau menjual data pribadi Anda (termasuk email dan riwayat pesanan) kepada pihak ketiga untuk tujuan pemasaran.
+              Kami sangat menghargai privasi Anda. NOKOSKU menggunakan enkripsi <em>end-to-end</em> untuk kata sandi dan seluruh transaksi. Kami tidak akan pernah menyimpan, membagikan, atau menjual data pribadi Anda (termasuk email dan riwayat pesanan) kepada pihak ketiga untuk tujuan pemasaran.
             </p>
 
             <h2 id="larangan">6. Larangan Penggunaan</h2>
             <p>
-              Pengguna sangat dilarang keras menggunakan layanan NOKOSMU untuk tindakan ilegal, termasuk namun tidak terbatas pada:
+              Pengguna sangat dilarang keras menggunakan layanan NOKOSKU untuk tindakan ilegal, termasuk namun tidak terbatas pada:
             </p>
             <ul>
               <li>Penipuan, spam, atau <em>phishing</em>.</li>
@@ -112,7 +112,7 @@ export default function TermsPage() {
               <li>Aktivitas pencucian uang atau terorisme.</li>
             </ul>
             <p className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-600">
-              <strong>Pelanggaran:</strong> Jika pengguna terbukti melanggar kebijakan ini, NOKOSMU berhak memblokir akun secara permanen, membekukan/menghanguskan saldo yang tersisa, dan melaporkan aktivitas tersebut kepada pihak yang berwenang.
+              <strong>Pelanggaran:</strong> Jika pengguna terbukti melanggar kebijakan ini, NOKOSKU berhak memblokir akun secara permanen, membekukan/menghanguskan saldo yang tersisa, dan melaporkan aktivitas tersebut kepada pihak yang berwenang.
             </p>
 
           </article>

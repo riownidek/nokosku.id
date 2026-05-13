@@ -16,7 +16,7 @@ const loginSchema = z.object({
 const AUTH_SECRET =
   process.env.AUTH_SECRET ||
   process.env.NEXTAUTH_SECRET ||
-  "nokosmu_emergency_fallback_secret_2026_change_me";
+  "NOKOSKU_emergency_fallback_secret_2026_change_me";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
