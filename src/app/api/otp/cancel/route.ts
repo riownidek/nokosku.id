@@ -20,7 +20,6 @@ export async function POST(req: Request) {
     if (!order)
       return NextResponse.json({ error: "Order tidak ditemukan" }, { status: 404 });
 
-    // Izinkan pembatalan untuk status ACTIVE atau WAITING
     if (order.status !== "ACTIVE" && order.status !== "WAITING") {
       return NextResponse.json(
         { error: `Pesanan berstatus "${order.status}" tidak dapat dibatalkan` },
@@ -28,19 +27,31 @@ export async function POST(req: Request) {
       );
     }
 
-    // Batalkan di Hero-SMS (jika ada activationId / providerOrderId)
+    // ─── Batalkan di Hero-SMS TERLEBIH DAHULU ────────────────────────────────
+    // Refund HANYA terjadi jika Hero-SMS mengkonfirmasi pembatalan berhasil.
     let cancelledAtProvider = false;
     if (order.providerOrderId) {
       try {
         cancelledAtProvider = await cancelNumber(order.providerOrderId);
         console.log(`${TAG} Hero-SMS cancel result for ${order.providerOrderId}: ${cancelledAtProvider}`);
       } catch (err) {
-        // Tetap lanjutkan refund meski gagal di provider (edge case nomor sudah expired di sisi mereka)
-        console.warn(`${TAG} Hero-SMS cancel request failed (proceeding with refund):`, err);
+        console.warn(`${TAG} Hero-SMS cancel request failed:`, err);
       }
+
+      if (!cancelledAtProvider) {
+        // Provider menolak — OTP mungkin sudah terkirim, jangan refund
+        console.warn(`${TAG} Provider refused cancellation for ${order.providerOrderId} — skipping refund`);
+        return NextResponse.json(
+          { error: "Pembatalan ditolak oleh provider (OTP mungkin sudah terkirim). Saldo tidak dikembalikan." },
+          { status: 409 }
+        );
+      }
+    } else {
+      // Tidak ada providerOrderId (order lokal saja) — langsung izinkan cancel
+      cancelledAtProvider = true;
     }
 
-    // Update status + refund secara atomik
+    // ─── Update status + refund secara atomik ────────────────────────────────
     await prisma.$transaction([
       prisma.order.update({
         where: { id: orderId },
@@ -61,7 +72,7 @@ export async function POST(req: Request) {
       }),
     ]);
 
-    console.log(`${TAG} SUCCESS: orderId=${orderId} refunded=${Number(order.cost)} user=${session.user.email}`);
+    console.log(`${TAG} SUCCESS: orderId=${orderId} refunded=${Number(order.cost)} user=${session.user.id}`);
     return NextResponse.json({ success: true, refunded: Number(order.cost) });
   } catch (error) {
     console.error(`${TAG} Unhandled error:`, error);
