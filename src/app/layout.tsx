@@ -36,6 +36,11 @@ export const metadata: Metadata = {
     siteName: "NOKOSKU",
   },
   robots: { index: true, follow: true },
+  icons: {
+    icon: "/logo_2.webp",
+    shortcut: "/logo_2.webp",
+    apple: "/logo_2.webp",
+  },
 };
 
 export default function RootLayout({

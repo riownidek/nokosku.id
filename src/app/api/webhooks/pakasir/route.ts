@@ -114,36 +114,38 @@ export async function POST(req: Request) {
       }
     }
 
-    const ops: any[] = [
-      prisma.user.update({
-        where: { id: userId },
-        data: { balance: { increment: depositAmount } },
-      }),
-    ];
+    // Menggunakan supabaseAdmin (SERVICE_ROLE) untuk bypass RLS sesuai instruksi
+    const { supabaseAdmin } = await import("@/lib/supabase");
+    
+    // Fetch user current balance to increment safely
+    const currentUser = await prisma.user.findUnique({ where: { id: userId } });
+    const newBalance = (currentUser?.balance || 0) + depositAmount;
+
+    await supabaseAdmin
+      .from("users")
+      .update({ balance: newBalance })
+      .eq("id", userId);
 
     if (commissionAmount > 0 && referrerId) {
-      ops.push(
-        prisma.user.update({
-          where: { id: referrerId },
-          data: { balance: { increment: commissionAmount } },
-        }),
-        prisma.transaction.create({
-          data: {
-            userId: referrerId,
-            amount: commissionAmount,
-            type: "COMMISSION",
-            status: "SUCCESS",
-            note: `Komisi referral dari deposit ${transaction.user.email} — ${order_id}`,
-          },
-        })
-      );
+      const currentReferrer = await prisma.user.findUnique({ where: { id: referrerId } });
+      await supabaseAdmin
+        .from("users")
+        .update({ balance: (currentReferrer?.balance || 0) + commissionAmount })
+        .eq("id", referrerId);
+
+      await prisma.transaction.create({
+        data: {
+          userId: referrerId,
+          amount: commissionAmount,
+          type: "COMMISSION",
+          status: "SUCCESS",
+          note: `Komisi referral dari deposit ${transaction.user.email} — ${order_id}`,
+        },
+      });
     }
 
-    const results = await prisma.$transaction(ops);
-    const updatedUser = results[0] as any; // Index 0 is the user update now
-    const newBalance = Number(updatedUser.balance);
-
     console.log(`${TAG} SUCCESS: order_id=${order_id} user=${transaction.user.email} amount=${depositAmount} newBalance=${newBalance}`);
+
 
     // ── Telegram (fire-and-forget, jangan blokir response) ───────────────────
     sendTelegramMessage(

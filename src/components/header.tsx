@@ -35,15 +35,8 @@ export function Header() {
         boxShadow: "0 1px 0 rgba(14,30,62,0.04)",
       }}
     >
-      {/* Left: Brand on mobile */}
       <div className="flex items-center gap-2 sm:hidden">
-        <div
-          className="flex h-7 w-7 items-center justify-center rounded-lg"
-          style={{ background: "linear-gradient(135deg, #4F46E5, #7C3AED)" }}
-        >
-          <span className="text-xs font-black text-white">N</span>
-        </div>
-        <span className="text-sm font-black tracking-tight text-foreground">NOKOSKU</span>
+        <img src="/logo_2.webp" alt="Nokosku Logo" className="h-7 w-auto object-contain" />
       </div>
 
       {/* Left: empty on desktop (sidebar has logo) */}

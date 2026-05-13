@@ -3,16 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Wallet, History, User, ShoppingBag } from "lucide-react";
+import { LayoutDashboard, Smartphone, History, Code2, ShoppingBag } from "lucide-react";
 import { motion } from "framer-motion";
 
 const LEFT_NAV = [
   { href: "/dashboard", label: "Beranda", Icon: LayoutDashboard },
-  { href: "/deposit",   label: "Deposit",  Icon: Wallet },
+  { href: "/otp",       label: "Jasa OTP", Icon: Smartphone },
 ];
 const RIGHT_NAV = [
   { href: "/history",   label: "Aktivitas", Icon: History },
-  { href: "/profile",   label: "Profil",    Icon: User },
+  { href: "/api-docs",  label: "API Docs",  Icon: Code2 },
 ];
 
 function NavItem({ href, label, Icon, isActive }: {

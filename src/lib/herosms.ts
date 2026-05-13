@@ -319,17 +319,17 @@ export const SERVICE_NAMES: Record<string, string> = {
 // ─── COUNTRY NAME MAP ─────────────────────────────────────────────────────────
 
 export const COUNTRY_NAMES: Record<number, string> = {
-  2:  "Indonesia",
-  73: "Filipina",
-  46: "Malaysia",
   0:  "Rusia",
   1:  "Ukraina",
-  6:  "Amerika Serikat",
-  7:  "Inggris",
+  2:  "Kazakhstan",
+  4:  "Filipina",
+  6:  "Indonesia",
+  7:  "Malaysia",
+  12: "Amerika Serikat",
   16: "India",
   22: "Cina",
   32: "Kanada",
   36: "Vietnam",
   44: "Thailand",
-  83: "Brasil",
+  73: "Brasil",
 };

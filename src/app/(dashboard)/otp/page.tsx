@@ -25,15 +25,15 @@ const POPULAR_SERVICES = [
 ];
 
 const POPULAR_COUNTRIES = [
-  { id: 2,  name: "Indonesia",       flag: "🇮🇩" },
-  { id: 73, name: "Filipina",        flag: "🇵🇭" },
-  { id: 46, name: "Malaysia",        flag: "🇲🇾" },
-  { id: 6,  name: "Amerika Serikat", flag: "🇺🇸" },
-  { id: 7,  name: "Inggris",         flag: "🇬🇧" },
-  { id: 83, name: "Brasil",          flag: "🇧🇷" },
+  { id: 6,  name: "Indonesia",       flag: "🇮🇩" },
+  { id: 4,  name: "Filipina",        flag: "🇵🇭" },
+  { id: 7,  name: "Malaysia",        flag: "🇲🇾" },
+  { id: 12, name: "Amerika Serikat", flag: "🇺🇸" },
+  { id: 16, name: "India",           flag: "🇮🇳" },
+  { id: 73, name: "Brasil",          flag: "🇧🇷" },
   { id: 32, name: "Kanada",          flag: "🇨🇦" },
-  { id: 36, name: "Vietnam",         flag: "🇻🇳" }, // ✅ ID 36 (bukan 10)
-  { id: 44, name: "Thailand",        flag: "🇹🇭" }, // ✅ ID 44 (bukan 52)
+  { id: 36, name: "Vietnam",         flag: "🇻🇳" },
+  { id: 44, name: "Thailand",        flag: "🇹🇭" },
 ];
 
 // Array semua layanan untuk dropdown "Lainnya"

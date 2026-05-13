@@ -137,7 +137,14 @@ export default function HistoryPage() {
                       >
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold text-foreground">{o.productName}</p>
-                          <p className="truncate text-xs text-muted-foreground font-mono mt-0.5">{o.targetData}</p>
+                          <div className="flex flex-col gap-1 mt-1">
+                            <p className="truncate text-xs text-muted-foreground font-mono">Nomor: {o.targetData}</p>
+                            {(o.status === "COMPLETED" || o.status === "SUCCESS") && o.resultData && (
+                              <p className="truncate text-[11px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-md w-fit">
+                                OTP: <span className="font-black text-emerald-800 text-xs tracking-widest">{o.resultData}</span>
+                              </p>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                           <span className="rounded-md px-1.5 py-0.5 text-[10px] font-bold bg-muted text-muted-foreground">
