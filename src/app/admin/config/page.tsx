@@ -98,6 +98,7 @@ export default function AdminConfigPage() {
   const configFields = [
     { key: "herosms_api_key",  label: "Hero-SMS API Key",         group: "api",   placeholder: "Masukkan API Key Hero-SMS..." },
     { key: "pakasir_api_key",  label: "Pakasir API Key",           group: "api",   placeholder: "Masukkan API Key Pakasir..." },
+    { key: "pakasir_project",  label: "Pakasir Project Name",      group: "api",   placeholder: "Nama proyek (Slug) di Pakasir..." },
     { key: "usd_to_idr_rate",  label: "Kurs USD → IDR",            group: "api",   placeholder: "Contoh: 16000" },
     { key: "banner_url_1",     label: "Banner URL 1",              group: "visual", placeholder: "https://..." },
     { key: "banner_url_2",     label: "Banner URL 2",              group: "visual", placeholder: "https://..." },
