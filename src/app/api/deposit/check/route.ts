@@ -45,23 +45,15 @@ export async function GET(req: Request) {
         });
 
         if (lockUpdate.count > 0) {
-          const { supabaseAdmin } = await import("@/lib/supabase");
-          const depositAmount = Number(tx.amount);
-          const currentUser = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            select: { balance: true },
-          });
-          const newBalance = (Number(currentUser?.balance) || 0) + depositAmount;
-
-          const { error: balErr } = await supabaseAdmin
-            .from("users")
-            .update({ balance: newBalance })
-            .eq("id", session.user.id);
-
-          if (balErr) {
+          try {
+            const depositAmount = Number(tx.amount);
+            const updatedUser = await prisma.user.update({
+              where: { id: session.user.id },
+              data: { balance: { increment: depositAmount } },
+            });
+            console.log(`${TAG} Fallback SUCCESS: orderId=${orderId} +${depositAmount} newBalance=${updatedUser.balance}`);
+          } catch (balErr) {
             console.error(`${TAG} Balance update failed:`, balErr);
-          } else {
-            console.log(`${TAG} Fallback SUCCESS: orderId=${orderId} +${depositAmount} newBalance=${newBalance}`);
           }
         } else {
           console.log(`${TAG} Already processed by webhook: orderId=${orderId}`);

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { supabaseAdmin } from "@/lib/supabase";
 
 const TAG = "[PPOB Order]";
 
@@ -81,14 +80,14 @@ export async function POST(req: Request) {
 
     console.log(`${TAG} Recording order user=${session.user.id} service=${serviceId} providerOrderId=${providerOrderId} price=${price}`);
 
-    // ── Potong saldo via supabaseAdmin (bypass RLS) ───────────────────────────
-    const newBalance = Number(user.balance) - price;
-    const { error: balanceErr } = await supabaseAdmin
-      .from("users")
-      .update({ balance: newBalance })
-      .eq("id", session.user.id);
-
-    if (balanceErr) {
+    // ── Potong saldo secara atomik menggunakan Prisma (bypass RLS otomatis) ─
+    let updatedUser;
+    try {
+      updatedUser = await prisma.user.update({
+        where: { id: session.user.id },
+        data: { balance: { decrement: price } },
+      });
+    } catch (balanceErr) {
       console.error(`${TAG} Balance deduction failed:`, balanceErr);
       throw new Error("Gagal memotong saldo. Hubungi admin.");
     }

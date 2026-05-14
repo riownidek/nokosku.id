@@ -114,24 +114,18 @@ export async function POST(req: Request) {
       }
     }
 
-    // Menggunakan supabaseAdmin (SERVICE_ROLE) untuk bypass RLS sesuai instruksi
-    const { supabaseAdmin } = await import("@/lib/supabase");
-    
-    // Fetch user current balance to increment safely
-    const currentUser = await prisma.user.findUnique({ where: { id: userId } });
-    const newBalance = (currentUser?.balance || 0) + depositAmount;
-
-    await supabaseAdmin
-      .from("users")
-      .update({ balance: newBalance })
-      .eq("id", userId);
+    // Update balance user secara atomik menggunakan Prisma (melewati RLS secara otomatis karena akses raw Postgres)
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { balance: { increment: depositAmount } },
+    });
+    const newBalance = updatedUser.balance;
 
     if (commissionAmount > 0 && referrerId) {
-      const currentReferrer = await prisma.user.findUnique({ where: { id: referrerId } });
-      await supabaseAdmin
-        .from("users")
-        .update({ balance: (currentReferrer?.balance || 0) + commissionAmount })
-        .eq("id", referrerId);
+      await prisma.user.update({
+        where: { id: referrerId },
+        data: { balance: { increment: commissionAmount } },
+      });
 
       await prisma.transaction.create({
         data: {
