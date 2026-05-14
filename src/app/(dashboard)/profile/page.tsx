@@ -185,19 +185,15 @@ export default function ProfilePage() {
 
         <div className="space-y-2">
           <SectionHeader title="Sesi" />
-          <button
-            onClick={() => {
-              setLoggingOut(true);
-              window.location.href = "/api/auth/signout?callbackUrl=/login";
-            }}
-            disabled={loggingOut}
-            className="flex w-full items-center gap-3 px-4 py-3.5 rounded-2xl bg-red-50 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-60"
+          <a
+            href="/api/auth/clear-session"
+            className="flex w-full items-center gap-3 px-4 py-3.5 rounded-2xl bg-red-50 border border-red-200 hover:bg-red-100 transition-colors"
           >
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-100">
-              {loggingOut ? <Loader2 className="h-4 w-4 text-red-500 animate-spin" /> : <LogOut className="h-4 w-4 text-red-500" />}
+              <LogOut className="h-4 w-4 text-red-500" />
             </div>
-            <span className="text-sm font-bold text-red-500">{loggingOut ? "Keluar..." : "Keluar"}</span>
-          </button>
+            <span className="text-sm font-bold text-red-500">Keluar</span>
+          </a>
         </div>
       </motion.div>
     </motion.div>

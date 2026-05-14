@@ -4,13 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
-  LayoutDashboard, Users, Receipt, Settings, ArrowLeft, LogOut, ShieldCheck, Loader2
+  LayoutDashboard, Users, Receipt, Settings, ArrowLeft, LogOut, ShieldCheck
 } from "lucide-react";
-import { useState } from "react";
 
 export function AdminSidebar() {
   const pathname = usePathname();
-  const [loggingOut, setLoggingOut] = useState(false);
 
   const navItems = [
     { href: "/admin", label: "Dasbor Admin", icon: LayoutDashboard },
@@ -78,20 +76,13 @@ export function AdminSidebar() {
           <ArrowLeft className="h-4 w-4 shrink-0" />
           Kembali ke Dasbor User
         </Link>
-        <button
-          disabled={loggingOut}
-          onClick={() => {
-            setLoggingOut(true);
-            // Gunakan native redirect — bypass middleware loop NextAuth pada admin
-            window.location.href = "/api/auth/signout?callbackUrl=/login";
-          }}
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors disabled:opacity-60"
+        <a
+          href="/api/auth/clear-session"
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors"
         >
-          {loggingOut
-            ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-            : <LogOut className="h-4 w-4 shrink-0" />}
-          {loggingOut ? "Keluar..." : "Keluar (Logout)"}
-        </button>
+          <LogOut className="h-4 w-4 shrink-0" />
+          Keluar (Logout)
+        </a>
       </div>
     </aside>
   );

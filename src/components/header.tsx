@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSession } from "next-auth/react";
-import { Bell, ChevronDown, LogOut, LayoutDashboard, Wallet, Plus, ShieldCheck, User, Code2, Loader2 } from "lucide-react";
+import { Bell, ChevronDown, LogOut, LayoutDashboard, Wallet, Plus, ShieldCheck, User, Code2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import useSWR from "swr";
@@ -13,7 +13,6 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 export function Header() {
   const { data: session } = useSession();
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
 
   // Fetch live balance
   const { data: profile } = useSWR(
@@ -172,17 +171,12 @@ export function Header() {
                       <ShieldCheck className="h-4 w-4" /> Panel Admin
                     </Link>
                   )}
-                  <button
-                    disabled={loggingOut}
-                    onClick={() => {
-                      setLoggingOut(true);
-                      window.location.href = "/api/auth/signout?callbackUrl=/login";
-                    }}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-60"
+                  <a
+                    href="/api/auth/clear-session"
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors"
                   >
-                    {loggingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
-                    {loggingOut ? "Keluar..." : "Keluar"}
-                  </button>
+                    <LogOut className="h-4 w-4" /> Keluar
+                  </a>
                 </motion.div>
               </>
             )}

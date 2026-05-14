@@ -1,56 +1,88 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { createJagoanpediaOrder, getJagoanpediaServices } from "@/lib/jagoanpedia";
 import { supabaseAdmin } from "@/lib/supabase";
 
 const TAG = "[PPOB Order]";
 
+/**
+ * POST /api/ppob/order
+ *
+ * Menerima hasil pesanan yang sudah dibuat oleh klien secara langsung ke Jagoanpedia
+ * (karena server IP diblokir Cloudflare, order dibuat dari browser pengguna).
+ *
+ * Body: {
+ *   serviceId: string       — ID layanan Jagoanpedia
+ *   serviceName: string     — nama produk
+ *   target: string          — nomor/ID tujuan
+ *   providerOrderId: string — ID order dari Jagoanpedia (sudah terbuat di sisi klien)
+ *   providerStatus: string  — status awal dari Jagoanpedia (pending/success/failed)
+ *   baseCost: number        — harga asli dari Jagoanpedia
+ *   displayPrice: number    — harga yang disepakati pengguna (base + margin)
+ *   sn?: string             — serial number / kode hasil (jika sudah ada)
+ * }
+ */
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const { serviceId, target } = await req.json();
-    if (!serviceId || !target)
-      return NextResponse.json({ error: "serviceId dan target wajib diisi" }, { status: 400 });
+    const {
+      serviceId,
+      serviceName,
+      target,
+      providerOrderId,
+      providerStatus,
+      baseCost,
+      displayPrice,
+      sn,
+    } = await req.json();
 
-    // Ambil margin & harga layanan
-    const marginSetting = await prisma.setting.findUnique({ where: { key: "markup_ppob_percent" } });
+    if (!serviceId || !serviceName || !target || !providerOrderId || displayPrice === undefined) {
+      return NextResponse.json(
+        { error: "serviceId, serviceName, target, providerOrderId, dan displayPrice wajib diisi" },
+        { status: 400 }
+      );
+    }
+
+    const price = Number(displayPrice);
+    if (isNaN(price) || price <= 0) {
+      return NextResponse.json({ error: "displayPrice tidak valid" }, { status: 400 });
+    }
+
+    // ── Ambil margin dari settings untuk verifikasi harga minimal ────────────
+    const marginSetting = await prisma.setting.findUnique({
+      where: { key: "markup_ppob_percent" },
+    });
     const marginAmount = parseFloat(marginSetting?.value ?? "0");
+    const expectedMin = Number(baseCost) + marginAmount;
 
-    const services = await getJagoanpediaServices(marginAmount);
-    const service = services.find((s) => s.service === serviceId);
-    if (!service)
-      return NextResponse.json({ error: "Layanan tidak ditemukan" }, { status: 404 });
+    // Tolak jika klien mengirim harga lebih murah dari seharusnya (anti-cheat)
+    if (price < expectedMin) {
+      console.warn(`${TAG} Price mismatch: sent=${price} expectedMin=${expectedMin}`);
+      return NextResponse.json(
+        { error: `Harga tidak valid. Minimum: ${expectedMin}` },
+        { status: 400 }
+      );
+    }
 
-    const displayPrice = service.displayPrice ?? service.price;
-
-    // Cek saldo pengguna
+    // ── Cek saldo pengguna ────────────────────────────────────────────────────
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: { balance: true },
     });
-    if (!user || user.balance < displayPrice) {
+    if (!user || Number(user.balance) < price) {
       return NextResponse.json(
-        { error: `Saldo tidak cukup. Dibutuhkan ${displayPrice}, saldo Anda ${user?.balance ?? 0}` },
+        { error: `Saldo tidak cukup. Dibutuhkan ${price}, saldo Anda ${user?.balance ?? 0}` },
         { status: 402 }
       );
     }
 
-    console.log(`${TAG} Creating order for user=${session.user.id} service=${serviceId} target=${target} price=${displayPrice}`);
+    console.log(`${TAG} Recording order user=${session.user.id} service=${serviceId} providerOrderId=${providerOrderId} price=${price}`);
 
-    // Buat order di Jagoanpedia
-    const orderRes = await createJagoanpediaOrder(serviceId, target);
-    if (!orderRes.success || !orderRes.data?.id) {
-      throw new Error(orderRes.message ?? "Gagal membuat pesanan di provider");
-    }
-
-    const providerOrderId = orderRes.data.id;
-
-    // Potong saldo dengan supabaseAdmin (bypass RLS)
-    const newBalance = Number(user.balance) - displayPrice;
+    // ── Potong saldo via supabaseAdmin (bypass RLS) ───────────────────────────
+    const newBalance = Number(user.balance) - price;
     const { error: balanceErr } = await supabaseAdmin
       .from("users")
       .update({ balance: newBalance })
@@ -61,37 +93,46 @@ export async function POST(req: Request) {
       throw new Error("Gagal memotong saldo. Hubungi admin.");
     }
 
-    // Simpan order ke DB
+    // ── Simpan order ke DB ────────────────────────────────────────────────────
+    const finalStatus = String(providerStatus ?? "").toUpperCase() === "SUCCESS"
+      ? "COMPLETED"
+      : String(providerStatus ?? "").toUpperCase() === "FAILED"
+      ? "FAILED"
+      : "PENDING";
+
     const order = await prisma.order.create({
       data: {
         userId: session.user.id,
-        providerOrderId: providerOrderId,
+        providerOrderId: String(providerOrderId),
         targetData: target,
         serviceCategory: "PPOB",
-        productName: service.name,
-        status: orderRes.data.status?.toUpperCase() === "SUCCESS" ? "COMPLETED" : "PENDING",
-        cost: displayPrice,
-        baseCost: service.price,
-        resultData: orderRes.data.sn ?? null,
+        productName: serviceName,
+        status: finalStatus,
+        cost: price,
+        baseCost: Number(baseCost) || price,
+        resultData: sn ?? null,
         expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 jam
       },
     });
 
-    // Catat transaksi
+    // ── Catat transaksi ───────────────────────────────────────────────────────
     await prisma.transaction.create({
       data: {
         userId: session.user.id,
-        amount: displayPrice,
+        amount: price,
         type: "DEDUCTION",
         status: "SUCCESS",
-        note: `Pembelian PPOB: ${service.name} → ${target}`,
+        note: `Pembelian PPOB: ${serviceName} → ${target}`,
       },
     });
 
-    console.log(`${TAG} Success: orderId=${order.id} providerOrderId=${providerOrderId}`);
+    console.log(`${TAG} Success: orderId=${order.id}`);
     return NextResponse.json({ success: true, order, newBalance });
   } catch (err: any) {
     console.error(`${TAG} Error:`, err);
-    return NextResponse.json({ error: err.message ?? "Gagal membuat pesanan PPOB" }, { status: 500 });
+    return NextResponse.json(
+      { error: err.message ?? "Gagal merekam pesanan PPOB" },
+      { status: 500 }
+    );
   }
 }

@@ -5,10 +5,9 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Smartphone, Wifi, Wallet,
-  History, ShieldCheck, LogOut, Loader2,
+  History, ShieldCheck, LogOut,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { useState } from "react";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard",   icon: LayoutDashboard },
@@ -20,7 +19,6 @@ const navItems = [
 
 export function Sidebar({ role }: { role?: string }) {
   const pathname = usePathname();
-  const [loggingOut, setLoggingOut] = useState(false);
 
   return (
     <aside
@@ -88,19 +86,13 @@ export function Sidebar({ role }: { role?: string }) {
 
       {/* Logout */}
       <div className="border-t border-border p-3">
-        <button
-          disabled={loggingOut}
-          onClick={() => {
-            setLoggingOut(true);
-            window.location.href = "/api/auth/signout?callbackUrl=/login";
-          }}
-          className="sidebar-link w-full text-left text-destructive hover:text-destructive hover:bg-red-50 disabled:opacity-60"
+        <a
+          href="/api/auth/clear-session"
+          className="sidebar-link text-destructive hover:text-destructive hover:bg-red-50"
         >
-          {loggingOut
-            ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-            : <LogOut className="h-4 w-4 shrink-0" />}
-          {loggingOut ? "Keluar..." : "Keluar"}
-        </button>
+          <LogOut className="h-4 w-4 shrink-0" />
+          Keluar
+        </a>
       </div>
     </aside>
   );
