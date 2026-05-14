@@ -45,10 +45,11 @@ export default auth((req: NextRequest & { auth: any }) => {
 
 export const config = {
   // Matcher: jalankan middleware di semua path KECUALI:
+  // - /api/auth/clear-session (agar NextAuth tidak mengintervensi dan memperbarui cookie)
   // - _next/static (aset JS/CSS)
   // - _next/image (image optimizer)
-  // - favicon & file statis (.png, .svg, .ico, .jpg, .webp, .woff, .woff2)
+  // - favicon & file statis
   matcher: [
-    "/((?!_next/static|_next/image|favicon\\.ico|.*\\.png$|.*\\.svg$|.*\\.ico$|.*\\.jpg$|.*\\.webp$|.*\\.woff2?$).*)",
+    "/((?!api/auth/clear-session|_next/static|_next/image|favicon\\.ico|.*\\.png$|.*\\.svg$|.*\\.ico$|.*\\.jpg$|.*\\.webp$|.*\\.woff2?$).*)",
   ],
 };

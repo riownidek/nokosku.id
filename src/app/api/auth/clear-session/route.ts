@@ -30,7 +30,9 @@ export async function GET(req: NextRequest) {
   // Pastikan menghapus cookie di domain root maupun wildcard
   // Jika URL localhost, hapus domain-nya, karena localhost tidak butuh dot prefix
   const hostname = url.hostname;
-  const domains = hostname === "localhost" ? [undefined, "localhost"] : [undefined, hostname, `.${hostname}`];
+  const domains = hostname === "localhost" 
+    ? [undefined, "localhost"] 
+    : [undefined, hostname, `.${hostname}`, `www.${hostname.replace('www.', '')}`];
 
   for (const name of cookieNames) {
     for (const domain of domains) {
