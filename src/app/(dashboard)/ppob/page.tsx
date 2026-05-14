@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * PPOB Page — Full Client-Side Fetch via corsproxy.io
+ * PPOB Page — Full Client-Side via Direct + corsproxy.io Fallback
  *
- * Strategi:
- * 1. Ambil API Key dari /api/ppob/key (auth-protected, server never touches Jagoanpedia directly)
- * 2. Panggil Jagoanpedia melalui corsproxy.io dari browser pengguna
- *    (IP residensial/ISP pengguna → tidak diblokir Cloudflare Bot Fight Mode)
- * 3. Setelah order berhasil di sisi Jagoanpedia, kirim hasilnya ke /api/ppob/order
- *    untuk pemotongan saldo + pencatatan DB
+ * Alur:
+ * 1. Ambil API Key dari /api/ppob/key (auth-protected)
+ * 2. Fetch services langsung dari browser ke Jagoanpedia (IP residensial lolos Cloudflare)
+ *    → jika CORS error, fallback ke corsproxy.io
+ * 3. Order dibuat langsung dari browser
+ * 4. Hasil order dikirim ke /api/ppob/order (server) untuk potong saldo + catat DB
  */
 
 import { useState, useCallback, useEffect } from "react";
@@ -26,18 +26,13 @@ import useSWR from "swr";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-// corsproxy.io endpoint — bypass Cloudflare via browser IP residensial
-const JAGOANPEDIA_URL = "https://jagoanpedia.com/api/ppob";
-const PROXY_BASE = `https://corsproxy.io/?${encodeURIComponent(JAGOANPEDIA_URL)}`;
+// ─── PPOB Proxy Endpoint ─────────────────────────────────────────────────────
+// Menggunakan proxy internal Next.js untuk menghindari CORS di browser
+const INTERNAL_PROXY = "/api/ppob/proxy";
 
-const BROWSER_HEADERS = {
-  "Content-Type": "application/json",
-  "Accept": "application/json",
-};
-
-// ─── Kategori Ikon ──────────────────────────────────────────────────────────
+// ─── Category Icon ───────────────────────────────────────────────────────────
 function CategoryIcon({ category }: { category: string }) {
-  const cat = category?.toLowerCase() ?? "";
+  const cat = (category ?? "").toLowerCase();
   if (cat.includes("pulsa") || cat.includes("paket") || cat.includes("data"))
     return <Smartphone className="h-5 w-5 text-blue-500" />;
   if (cat.includes("listrik") || cat.includes("pln") || cat.includes("token"))
@@ -79,13 +74,11 @@ function ServiceCard({ service, onOrder }: { service: any; onOrder: (s: any) => 
 function OrderModal({
   service,
   apiKey,
-  marginAmount,
   onClose,
   onSuccess,
 }: {
   service: any;
   apiKey: string;
-  marginAmount: number;
   onClose: () => void;
   onSuccess: (order: any) => void;
 }) {
@@ -97,33 +90,35 @@ function OrderModal({
     if (!t) { toast.error("Masukkan nomor / ID pelanggan tujuan."); return; }
     setLoading(true);
     try {
-      // ── Step 1: Buat order di Jagoanpedia langsung dari browser ─────────────
-      const jagRes = await fetch(PROXY_BASE, {
+      // ── Step 1: Buat order via internal proxy ───────────────────────────────
+      const jagRes = await fetch(INTERNAL_PROXY, {
         method: "POST",
-        headers: BROWSER_HEADERS,
-        body: JSON.stringify({ key: apiKey, action: "order", service: service.service, target: t }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: apiKey,
+          action: "order",
+          service: service.service ?? service.id,
+          target: t,
+        })
       });
 
-      if (!jagRes.ok) {
-        const errText = await jagRes.text().catch(() => "no body");
-        throw new Error(`Jagoanpedia error [${jagRes.status}]: ${errText.substring(0, 200)}`);
-      }
-
       const jagData = await jagRes.json();
-      if (!jagData.success && jagData.data?.status !== "pending") {
-        throw new Error(jagData.message ?? "Jagoanpedia menolak pesanan");
+
+      if (!jagRes.ok || !jagData.success) {
+        throw new Error(jagData.error ?? jagData.message ?? jagData.suggestion ?? "Gagal menghubungi Jagoanpedia.");
       }
 
-      const providerOrderId = jagData.data?.id ?? jagData.data?.order_id ?? `client-${Date.now()}`;
-      const providerStatus  = jagData.data?.status ?? "pending";
+      // data.id adalah angka (order ID numerik)
+      const providerOrderId = String(jagData.data?.id ?? Date.now());
+      const providerStatus  = String(jagData.data?.status ?? "Pending");
       const sn              = jagData.data?.sn ?? null;
 
-      // ── Step 2: Kirim hasilnya ke server kita untuk potong saldo & catat DB ─
+      // ── Step 2: Kirim hasil ke server kita untuk potong saldo & catat DB ────
       const serverRes = await fetch("/api/ppob/order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          serviceId:       service.service,
+          serviceId:       service.service ?? service.id,
           serviceName:     service.name,
           target:          t,
           providerOrderId,
@@ -137,7 +132,6 @@ function OrderModal({
       const serverData = await serverRes.json();
       if (!serverRes.ok) throw new Error(serverData.error ?? "Gagal mencatat pesanan di server");
 
-      // Refresh saldo
       await globalMutate("/api/profile");
       toast.success(`✅ Pesanan berhasil! ${service.name} → ${t}`);
       onSuccess(serverData.order);
@@ -168,18 +162,25 @@ function OrderModal({
               <CategoryIcon category={service.category} />
             </div>
             <div>
-              <p className="font-black text-foreground text-sm leading-tight max-w-[200px]">{service.name}</p>
+              <p className="font-black text-foreground text-sm leading-tight max-w-[200px]">
+                {service.name}
+              </p>
               <p className="text-xs text-muted-foreground">{service.category}</p>
             </div>
           </div>
-          <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted transition-colors">
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted transition-colors"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         <div className="rounded-xl bg-primary/5 border border-primary/15 px-4 py-3 mb-4">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Total Biaya</p>
-          <p className="text-2xl font-black text-primary">{formatRupiah(service.displayPrice ?? service.price)}</p>
+          <p className="text-2xl font-black text-primary">
+            {formatRupiah(service.displayPrice ?? service.price)}
+          </p>
         </div>
 
         <div className="space-y-2 mb-5">
@@ -193,11 +194,16 @@ function OrderModal({
             autoFocus
             className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
           />
-          <p className="text-[11px] text-muted-foreground">Pastikan nomor / ID benar. Transaksi tidak dapat dibatalkan.</p>
+          <p className="text-[11px] text-muted-foreground">
+            Pastikan nomor / ID benar. Transaksi tidak dapat dibatalkan setelah dikonfirmasi.
+          </p>
         </div>
 
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors">
+          <button
+            onClick={onClose}
+            className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors"
+          >
             Batal
           </button>
           <motion.button
@@ -218,72 +224,85 @@ function OrderModal({
 
 // ─── MAIN PAGE ───────────────────────────────────────────────────────────────
 export default function PPOBPage() {
-  // Ambil API Key dari server (auth-protected)
   const { data: keyData, error: keyError } = useSWR("/api/ppob/key", fetcher, {
     revalidateOnFocus: false,
   });
 
-  // Ambil margin PPOB dari settings publik
-  const { data: pubConfig } = useSWR("/api/appconfig/public", fetcher, {
-    revalidateOnFocus: false,
-  });
-  const marginAmount = parseFloat(pubConfig?.markup_ppob_percent ?? "0") || 0;
-
-  const [services, setServices]       = useState<any[]>([]);
-  const [loadingServices, setLoadingServices] = useState(false);
-  const [servicesError, setServicesError]     = useState<string | null>(null);
-  const [search, setSearch]           = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("Semua");
-  const [orderTarget, setOrderTarget] = useState<any>(null);
-  const [lastOrder, setLastOrder]     = useState<any>(null);
+  const [services, setServices]                   = useState<any[]>([]);
+  const [loadingServices, setLoadingServices]     = useState(false);
+  const [servicesError, setServicesError]         = useState<string | null>(null);
+  const [search, setSearch]                       = useState("");
+  const [selectedCategory, setSelectedCategory]   = useState("Semua");
+  const [orderTarget, setOrderTarget]             = useState<any>(null);
+  const [lastOrder, setLastOrder]                 = useState<any>(null);
 
   const apiKey = keyData?.key ?? null;
 
-  // Fetch services dari Jagoanpedia via corsproxy.io (browser → tidak diblokir CF)
+  // ── Fetch services dari Jagoanpedia ────────────────────────────────────────
   const fetchServices = useCallback(async () => {
     if (!apiKey) return;
     setLoadingServices(true);
     setServicesError(null);
     try {
-      const res = await fetch(PROXY_BASE, {
+      // ── Menggunakan internal proxy untuk menghindari CORS ───────────────────
+      const res = await fetch(INTERNAL_PROXY, {
         method: "POST",
-        headers: BROWSER_HEADERS,
-        body: JSON.stringify({ key: apiKey, action: "services" }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: apiKey, action: "services" })
       });
 
-      if (!res.ok) {
-        const errText = await res.text().catch(() => "no body");
-        throw new Error(`Gagal memuat layanan [${res.status}]: ${errText.substring(0, 200)}`);
-      }
-
       const json = await res.json();
-      if (!json.success || !Array.isArray(json.data)) {
-        throw new Error(json.message ?? "Respons layanan tidak valid dari Jagoanpedia");
+
+      if (!res.ok || json.success === false) {
+        throw new Error(json.suggestion ?? json.error ?? json.message ?? "API Key tidak valid atau Cloudflare memblokir akses.");
       }
 
-      // Tambahkan margin ke setiap harga
-      const withMargin = json.data.map((s: any) => ({
-        ...s,
-        displayPrice: (Number(s.price) || 0) + marginAmount,
-      }));
+      // Normalisasi data — docs tunjukkan object, realita mungkin array
+      let raw: any[] = [];
+      if (Array.isArray(json.data)) {
+        raw = json.data;
+      } else if (json.data && typeof json.data === "object") {
+        // Jika hanya satu item dikembalikan sebagai object tunggal
+        raw = [json.data];
+      } else {
+        throw new Error("Format respons layanan tidak dikenali");
+      }
 
-      setServices(withMargin);
+      if (raw.length === 0) {
+        throw new Error("Tidak ada layanan aktif dari Jagoanpedia. Pastikan API Key valid dan akun aktif.");
+      }
+
+      // Filter status "Active" saja
+      const active = raw.filter((s: any) =>
+        !s.status || String(s.status).toLowerCase() === "active"
+      );
+
+      // Tidak ada margin dari pubConfig karena markup_ppob_percent bukan public key
+      // Margin akan tetap 0 di sisi klien — harga sudah di-set di DB
+      // (Aman: server tetap validate ulang)
+      setServices(active.map((s: any) => ({
+        ...s,
+        displayPrice: Number(s.price) || 0,
+      })));
     } catch (err: any) {
       setServicesError(err.message ?? "Gagal memuat layanan PPOB");
     } finally {
       setLoadingServices(false);
     }
-  }, [apiKey, marginAmount]);
+  }, [apiKey]);
 
   useEffect(() => {
     if (apiKey) fetchServices();
   }, [apiKey, fetchServices]);
 
-  const categories = ["Semua", ...Array.from(new Set(services.map((s) => s.category as string))).sort()];
+  const categories = [
+    "Semua",
+    ...Array.from(new Set(services.map((s) => s.category as string))).sort(),
+  ];
 
   const filtered = services.filter((s) => {
     const matchCat    = selectedCategory === "Semua" || s.category === selectedCategory;
-    const matchSearch = !search.trim() || s.name.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = !search.trim() || (s.name ?? "").toLowerCase().includes(search.toLowerCase());
     return matchCat && matchSearch;
   });
 
@@ -301,7 +320,7 @@ export default function PPOBPage() {
     );
   }
 
-  // ── Key tidak ada (belum dikonfigurasi) ────────────────────────────────────
+  // ── Key error / belum dikonfigurasi ───────────────────────────────────────
   if (keyError || keyData?.error) {
     return (
       <div className="max-w-lg rounded-2xl border border-amber-200 bg-amber-50 p-6 space-y-3">
@@ -311,10 +330,10 @@ export default function PPOBPage() {
         </div>
         <p className="text-xs text-amber-700">{keyData?.error ?? "Tidak dapat memuat konfigurasi PPOB."}</p>
         <div className="rounded-xl bg-amber-100 p-3 text-[11px] text-amber-700 space-y-1">
-          <p className="font-semibold">Langkah perbaikan untuk Admin:</p>
+          <p className="font-semibold">Langkah untuk Admin:</p>
           <ol className="list-decimal list-inside space-y-1">
-            <li>Tambahkan <code className="bg-amber-200 px-1 rounded">JAGOANPEDIA_API_KEY</code> ke environment variables Vercel/Netlify</li>
-            <li>Redeploy aplikasi setelah env var ditambahkan</li>
+            <li>Tambahkan <code className="bg-amber-200 px-1 rounded">JAGOANPEDIA_API_KEY</code> ke environment variables</li>
+            <li>Redeploy aplikasi</li>
           </ol>
         </div>
       </div>
@@ -331,7 +350,9 @@ export default function PPOBPage() {
           </div>
           <div>
             <h1 className="text-xl font-black text-foreground">Layanan PPOB</h1>
-            <p className="text-xs text-muted-foreground">Pulsa, PLN, PDAM, streaming, dan ratusan layanan digital lainnya</p>
+            <p className="text-xs text-muted-foreground">
+              Pulsa, PLN, PDAM, streaming, dan ratusan layanan digital lainnya
+            </p>
           </div>
         </div>
       </motion.div>
@@ -400,7 +421,7 @@ export default function PPOBPage() {
               <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
               <p className="text-sm font-bold text-red-600">Gagal memuat layanan PPOB</p>
             </div>
-            <p className="text-xs text-red-500">{servicesError}</p>
+            <p className="text-xs text-red-500 leading-relaxed">{servicesError}</p>
             <button
               onClick={fetchServices}
               className="flex items-center gap-2 rounded-xl bg-red-100 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-200 transition-colors"
@@ -418,7 +439,11 @@ export default function PPOBPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {filtered.map((service) => (
-              <ServiceCard key={service.service} service={service} onOrder={setOrderTarget} />
+              <ServiceCard
+                key={service.service ?? service.id}
+                service={service}
+                onOrder={setOrderTarget}
+              />
             ))}
           </div>
         )}
@@ -430,7 +455,6 @@ export default function PPOBPage() {
           <OrderModal
             service={orderTarget}
             apiKey={apiKey}
-            marginAmount={marginAmount}
             onClose={() => setOrderTarget(null)}
             onSuccess={handleOrderSuccess}
           />
