@@ -8,7 +8,7 @@ import { v4 as uuidv4 } from "uuid";
 const TAG = "[Deposit]";
 
 const depositSchema = z.object({
-  amount: z.number().min(10000, "Minimum deposit Rp 10.000"),
+  amount: z.number().min(1000, "Minimum deposit Rp 1.000"),
   method: z.string().min(1, "Metode wajib diisi"),
 });
 
