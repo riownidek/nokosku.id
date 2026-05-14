@@ -8,7 +8,6 @@ import {
   History, ShieldCheck, LogOut, Loader2,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { signOut } from "next-auth/react";
 import { useState } from "react";
 
 const navItems = [
@@ -91,9 +90,9 @@ export function Sidebar({ role }: { role?: string }) {
       <div className="border-t border-border p-3">
         <button
           disabled={loggingOut}
-          onClick={async () => {
+          onClick={() => {
             setLoggingOut(true);
-            await signOut({ callbackUrl: "/login", redirect: true });
+            window.location.href = "/api/auth/signout?callbackUrl=/login";
           }}
           className="sidebar-link w-full text-left text-destructive hover:text-destructive hover:bg-red-50 disabled:opacity-60"
         >

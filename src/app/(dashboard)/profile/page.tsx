@@ -186,9 +186,9 @@ export default function ProfilePage() {
         <div className="space-y-2">
           <SectionHeader title="Sesi" />
           <button
-            onClick={async () => {
+            onClick={() => {
               setLoggingOut(true);
-              await signOut({ callbackUrl: "/login", redirect: true });
+              window.location.href = "/api/auth/signout?callbackUrl=/login";
             }}
             disabled={loggingOut}
             className="flex w-full items-center gap-3 px-4 py-3.5 rounded-2xl bg-red-50 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-60"

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { Bell, ChevronDown, LogOut, LayoutDashboard, Wallet, Plus, ShieldCheck, User, Code2, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -174,9 +174,9 @@ export function Header() {
                   )}
                   <button
                     disabled={loggingOut}
-                    onClick={async () => {
+                    onClick={() => {
                       setLoggingOut(true);
-                      await signOut({ callbackUrl: "/login", redirect: true });
+                      window.location.href = "/api/auth/signout?callbackUrl=/login";
                     }}
                     className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-60"
                   >
