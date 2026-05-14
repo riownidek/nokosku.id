@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
-  LayoutDashboard, Users, Receipt, Settings, ArrowLeft, LogOut, ShieldCheck
+  LayoutDashboard, Users, Receipt, Settings, ArrowLeft, LogOut, ShieldCheck, BugPlay
 } from "lucide-react";
 
 export function AdminSidebar() {
@@ -15,6 +15,7 @@ export function AdminSidebar() {
     { href: "/admin/users", label: "Manajemen Pengguna", icon: Users },
     { href: "/admin/transactions", label: "Log Transaksi", icon: Receipt },
     { href: "/admin/config", label: "App Config", icon: Settings },
+    { href: "/admin/debug", label: "Sistem Debug", icon: BugPlay },
   ];
 
   return (
