@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatRupiah } from "@/lib/utils";
 import {
@@ -9,8 +9,9 @@ import {
   Building2, Info, Clock,
 } from "lucide-react";
 import { toast } from "sonner";
-import useSWR from "swr";
+import useSWR, { mutate as globalMutate } from "swr";
 import QRCode from "react-qr-code";
+import { useRouter } from "next/navigation";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 const QUICK = [20000, 50000, 100000, 250000, 500000, 1000000];
@@ -269,37 +270,55 @@ function Step3Confirm({ amount, method, onConfirm, onBack, isProcessing }: {
 function Step4Payment({ result, amount, method, onReset }: {
   result: any; amount: number; method: any; onReset: () => void;
 }) {
-  const [checking, setChecking] = useState(false);
+  const router = useRouter();
   const [checkStatus, setCheckStatus] = useState<"idle"|"pending"|"success"|"failed">("idle");
+  const [checking, setChecking] = useState(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const adminFee = Math.ceil(amount * (method?.adminFeePercent ?? 0) / 100);
   const total = amount + adminFee;
 
-
-
-  const handleCheck = async () => {
-    if (!result?.orderId) { toast.info("Order ID tidak ditemukan."); return; }
-    setChecking(true);
-    setCheckStatus("pending");
+  const doCheck = useCallback(async (isManual = false) => {
+    if (!result?.orderId) return;
+    if (isManual) setChecking(true);
     try {
       const res = await fetch(`/api/deposit/check?orderId=${result.orderId}`);
       const data = await res.json();
       if (data.status === "SUCCESS") {
         setCheckStatus("success");
-        toast.success("Pembayaran berhasil dikonfirmasi! Saldo segera ditambahkan.");
+        // Hentikan polling
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        // Refresh saldo di header
+        await globalMutate("/api/profile");
+        toast.success("💰 Pembayaran dikonfirmasi! Saldo Anda telah diperbarui.");
+        // Redirect ke riwayat setelah 2 detik
+        setTimeout(() => router.push("/history"), 2000);
       } else if (data.status === "FAILED") {
         setCheckStatus("failed");
-        toast.error("Pembayaran gagal atau expired.");
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        if (isManual) toast.error("Pembayaran gagal atau expired.");
       } else {
-        setCheckStatus("idle");
-        toast.info("Pembayaran belum terkonfirmasi. Harap tunggu beberapa saat.");
+        if (isManual) {
+          setCheckStatus("idle");
+          toast.info("Pembayaran belum terkonfirmasi. Sistem akan terus memeriksa otomatis.");
+        }
       }
     } catch {
-      setCheckStatus("idle");
-      toast.error("Gagal menghubungi server. Coba lagi.");
+      if (isManual) toast.error("Gagal menghubungi server.");
     } finally {
-      setChecking(false);
+      if (isManual) setChecking(false);
     }
-  };
+  }, [result?.orderId, router]);
+
+  // Auto-polling setiap 5 detik
+  useEffect(() => {
+    if (!result?.orderId || checkStatus === "success" || checkStatus === "failed") return;
+    // Cek pertama kali langsung
+    doCheck(false);
+    intervalRef.current = setInterval(() => doCheck(false), 5000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [result?.orderId, checkStatus, doCheck]);
+
+  const handleCheck = () => doCheck(true);
 
   // ── Tentukan tipe konten yang ditampilkan ─────────────────────────────────
   const isValidUrl = (s?: string) => !!s && (s.startsWith("http://") || s.startsWith("https://"));
@@ -392,19 +411,27 @@ function Step4Payment({ result, amount, method, onReset }: {
         )}
       </div>
 
-      {/* Check payment */}
-      <button onClick={handleCheck} disabled={checking || checkStatus === "success"}
-        className={`flex w-full items-center justify-center gap-2 rounded-xl border py-3 text-sm font-semibold transition-colors disabled:opacity-60
-          ${checkStatus === "success" ? "border-emerald-300 bg-emerald-50 text-emerald-700" : checkStatus === "failed" ? "border-red-300 bg-red-50 text-red-600" : "border-border text-muted-foreground hover:bg-muted"}`}>
-        {checking
-          ? <><Loader2 className="h-4 w-4 animate-spin" /> Mengecek pembayaran...</>
-          : checkStatus === "success" ? <><CheckCircle2 className="h-4 w-4" /> Pembayaran Dikonfirmasi!</>
-          : checkStatus === "failed" ? <>❌ Pembayaran Gagal/Expired</>
-          : <><RefreshCw className="h-4 w-4" /> Mengecek pembayaran</>}
-      </button>
-      <p className="text-center text-[10px] text-muted-foreground">
-        Jangan membatalkan apabila telah membayar karena menggangu proses pengecekan dan jangan di bayar apabila telah di batalkan atau expired
-      </p>
+      {/* Auto-polling status + Manual check */}
+      <div className="space-y-2">
+        {checkStatus !== "success" && checkStatus !== "failed" && (
+          <div className="flex items-center gap-2 rounded-xl bg-blue-50 border border-blue-200 px-4 py-2.5">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500 shrink-0" />
+            <p className="text-xs text-blue-700 font-semibold">Memeriksa pembayaran otomatis setiap 5 detik...</p>
+          </div>
+        )}
+        <button onClick={handleCheck} disabled={checking || checkStatus === "success"}
+          className={`flex w-full items-center justify-center gap-2 rounded-xl border py-3 text-sm font-semibold transition-colors disabled:opacity-60
+            ${checkStatus === "success" ? "border-emerald-300 bg-emerald-50 text-emerald-700" : checkStatus === "failed" ? "border-red-300 bg-red-50 text-red-600" : "border-border text-muted-foreground hover:bg-muted"}`}>
+          {checking
+            ? <><Loader2 className="h-4 w-4 animate-spin" /> Mengecek...</>
+            : checkStatus === "success" ? <><CheckCircle2 className="h-4 w-4" /> Pembayaran Dikonfirmasi! Mengalihkan...</>
+            : checkStatus === "failed" ? <>❌ Pembayaran Gagal/Expired</>
+            : <><RefreshCw className="h-4 w-4" /> Cek Sekarang (Manual)</>}
+        </button>
+        <p className="text-center text-[10px] text-muted-foreground">
+          Jangan batalkan apabila sudah membayar. Saldo otomatis masuk dalam 5–60 detik.
+        </p>
+      </div>
 
       {/* Detail */}
       <div className="rounded-xl bg-card border border-border p-4 space-y-2 text-sm">

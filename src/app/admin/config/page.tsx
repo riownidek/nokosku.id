@@ -25,6 +25,7 @@ export default function AdminConfigPage() {
   const { data: appConfigs, mutate: mutateConfigs } = useSWR("/api/admin/appconfig", fetcher);
 
   const [markupPercent, setMarkupPercent] = useState("");
+  const [markupPpobAmount, setMarkupPpobAmount] = useState("");
   const [commissionPercent, setCommissionPercent] = useState("");
   const [minDeposit, setMinDeposit] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
@@ -36,8 +37,10 @@ export default function AdminConfigPage() {
   if (settings && !markupPercent) {
     const m = settings.find((s: any) => s.key === "markup_percent");
     const c = settings.find((s: any) => s.key === "referral_commission_percent");
+    const p = settings.find((s: any) => s.key === "markup_ppob_percent");
     if (m) setMarkupPercent(m.value);
     if (c) setCommissionPercent(c.value);
+    if (p) setMarkupPpobAmount(p.value);
   }
   // min_deposit_amount dari AppConfig
   if (appConfigs && !minDeposit) {
@@ -169,7 +172,8 @@ export default function AdminConfigPage() {
         {/* ── PENGATURAN HARGA & KOMISI ── */}
         <motion.div variants={staggerItem} className="space-y-4">
           {[
-            { key: "markup_percent", label: "Markup Harga Jual (%)", value: markupPercent, onChange: setMarkupPercent, desc: "Persentase markup dari harga asli API.", suffix: "%" },
+            { key: "markup_percent", label: "Markup Harga Jual OTP (%)", value: markupPercent, onChange: setMarkupPercent, desc: "Persentase markup dari harga asli Hero-SMS untuk layanan OTP.", suffix: "%" },
+            { key: "markup_ppob_percent", label: "Markup Harga Jual PPOB (Rp)", value: markupPpobAmount, onChange: setMarkupPpobAmount, desc: "Tambahan harga (Rp) dari harga asli Jagoanpedia untuk layanan PPOB.", suffix: "Rp" },
             { key: "referral_commission_percent", label: "Komisi Referral (%)", value: commissionPercent, onChange: setCommissionPercent, desc: "Komisi dari deposit referral.", suffix: "%" },
           ].map((setting) => (
             <Card key={setting.key}>

@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import {
   User, Shield, KeyRound, Mail, Gift, MessageCircle,
-  ChevronRight, Loader2, LogOut, Copy, CheckCircle2, Send,
+  ChevronRight, Loader2, LogOut, Copy, CheckCircle2, Send, Code2,
 } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
 import { staggerContainer, staggerItem } from "@/components/motion";
@@ -107,6 +107,7 @@ export default function ProfilePage() {
   const { data: profile } = useSWR("/api/profile", fetcher);
   const { data: config } = useSWR("/api/appconfig/public", fetcher);
   const [copied, setCopied] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const bandingPrice = parseFloat(config?.banding_price ?? "500");
   const referralCode = profile?.referralCode ?? session?.user?.name ?? "—";
@@ -173,18 +174,29 @@ export default function ProfilePage() {
         </div>
 
         <div className="space-y-2">
+          <SectionHeader title="Lainnya" />
+          <MenuItem href="/api-docs" Icon={Code2} label="Dokumentasi API" desc="Integrasi layanan NOKOSKU" />
+        </div>
+
+        <div className="space-y-2">
           <SectionHeader title="Fitur Premium" />
           <BandingSection bandingPrice={bandingPrice} />
         </div>
 
         <div className="space-y-2">
           <SectionHeader title="Sesi" />
-          <button onClick={() => signOut({ callbackUrl: "/" })}
-            className="flex w-full items-center gap-3 px-4 py-3.5 rounded-2xl bg-red-50 border border-red-200 hover:bg-red-100 transition-colors">
+          <button
+            onClick={async () => {
+              setLoggingOut(true);
+              try { await signOut({ callbackUrl: "/" }); } catch { setLoggingOut(false); }
+            }}
+            disabled={loggingOut}
+            className="flex w-full items-center gap-3 px-4 py-3.5 rounded-2xl bg-red-50 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-60"
+          >
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-100">
-              <LogOut className="h-4 w-4 text-red-500" />
+              {loggingOut ? <Loader2 className="h-4 w-4 text-red-500 animate-spin" /> : <LogOut className="h-4 w-4 text-red-500" />}
             </div>
-            <span className="text-sm font-bold text-red-500">Keluar</span>
+            <span className="text-sm font-bold text-red-500">{loggingOut ? "Keluar..." : "Keluar"}</span>
           </button>
         </div>
       </motion.div>

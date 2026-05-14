@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import useSWR from "swr";
 import { motion } from "framer-motion";
 import { formatRupiah } from "@/lib/utils";
@@ -22,7 +22,19 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 }
 
 export default function AdminUsersPage() {
-  const { data: usersData, mutate: mutateUsers } = useSWR("/api/admin/users?limit=100", fetcher);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // Debounce search 400ms
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const { data: usersData, mutate: mutateUsers } = useSWR(
+    `/api/admin/users?limit=100&search=${encodeURIComponent(debouncedSearch)}`,
+    fetcher
+  );
 
   // Balance manager state
   const [balanceUserId, setBalanceUserId] = useState("");
@@ -127,8 +139,15 @@ export default function AdminUsersPage() {
 
         {/* User List */}
         <Card className="overflow-hidden !p-0">
-          <div className="border-b border-border px-5 py-4">
-            <p className="font-bold text-foreground">Daftar Pengguna ({usersData?.users?.length ?? 0})</p>
+          <div className="border-b border-border px-5 py-4 flex items-center justify-between gap-3">
+            <p className="font-bold text-foreground">Daftar Pengguna ({usersData?.total ?? 0})</p>
+            <input
+              type="search"
+              placeholder="Cari nama / email..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="rounded-xl border border-input bg-background px-3 py-2 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
           </div>
           <div className="divide-y divide-border/50">
             {usersData?.users?.map((user: any) => (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import useSWR from "swr";
 import { toast } from "sonner";
@@ -63,6 +63,32 @@ export default function OTPPage() {
 
   const [isBuying, setIsBuying] = useState(false);
   const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([]);
+  const [restoredIds, setRestoredIds] = useState<Set<string>>(new Set());
+
+  // ── Restore pesanan aktif dari DB saat komponen dimuat ──────────────────────
+  const { data: activeFromDb } = useSWR<{ orders: any[] }>("/api/orders/active", fetcher, {
+    revalidateOnFocus: true,
+    refreshInterval: 15000, // refresh tiap 15 detik
+  });
+
+  useEffect(() => {
+    if (!activeFromDb?.orders?.length) return;
+    setActiveOrders(prev => {
+      const existingIds = new Set(prev.map(o => o.id));
+      const newOrders: ActiveOrder[] = activeFromDb.orders
+        .filter(o => !existingIds.has(o.id))
+        .map(o => ({
+          id: o.id,
+          number: o.targetData,
+          productName: o.productName,
+          cost: Number(o.cost),
+          expiresAt: o.expiresAt ?? new Date(new Date(o.createdAt).getTime() + 15 * 60 * 1000).toISOString(),
+        }));
+      if (newOrders.length === 0) return prev;
+      return [...newOrders, ...prev]; // restore cards dari DB di atas
+    });
+    setRestoredIds(new Set(activeFromDb.orders.map((o: any) => o.id)));
+  }, [activeFromDb]);
 
   // Fetch harga untuk service + country yang dipilih dari Hero-SMS via backend
   const priceKey =

@@ -17,7 +17,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "orderId wajib diisi" }, { status: 400 });
 
   try {
-    // Cari transaksi milik user ini
     const tx = await prisma.transaction.findFirst({
       where: { gatewayReference: orderId, userId: session.user.id },
       select: { id: true, status: true, amount: true, paymentMethod: true, createdAt: true },
@@ -25,25 +24,62 @@ export async function GET(req: Request) {
 
     if (!tx) return NextResponse.json({ error: "Transaksi tidak ditemukan" }, { status: 404 });
 
-    // Jika sudah sukses/gagal di DB, kembalikan langsung
     if (tx.status !== "PENDING") {
       return NextResponse.json({ status: tx.status, amount: tx.amount });
     }
 
-    // Cross-verify ke Pakasir
     try {
       const verified = await verifyPakasirTransaction(orderId);
       const pakasirStatus = verified.data?.status ?? "pending";
 
       console.log(`${TAG} orderId=${orderId} pakasirStatus=${pakasirStatus}`);
 
-      return NextResponse.json({
-        status: pakasirStatus === "success" ? "SUCCESS" : pakasirStatus === "failed" || pakasirStatus === "expired" ? "FAILED" : "PENDING",
-        pakasirStatus,
-        amount: tx.amount,
-      });
+      const isSuccess = pakasirStatus === "success";
+      const isFailed  = pakasirStatus === "failed" || pakasirStatus === "expired";
+
+      if (isSuccess) {
+        // Fallback: webhook gagal → terapkan saldo via polling dengan supabaseAdmin
+        const lockUpdate = await prisma.transaction.updateMany({
+          where: { id: tx.id, status: "PENDING" },
+          data: { status: "SUCCESS" },
+        });
+
+        if (lockUpdate.count > 0) {
+          const { supabaseAdmin } = await import("@/lib/supabase");
+          const depositAmount = Number(tx.amount);
+          const currentUser = await prisma.user.findUnique({
+            where: { id: session.user.id },
+            select: { balance: true },
+          });
+          const newBalance = (Number(currentUser?.balance) || 0) + depositAmount;
+
+          const { error: balErr } = await supabaseAdmin
+            .from("users")
+            .update({ balance: newBalance })
+            .eq("id", session.user.id);
+
+          if (balErr) {
+            console.error(`${TAG} Balance update failed:`, balErr);
+          } else {
+            console.log(`${TAG} Fallback SUCCESS: orderId=${orderId} +${depositAmount} newBalance=${newBalance}`);
+          }
+        } else {
+          console.log(`${TAG} Already processed by webhook: orderId=${orderId}`);
+        }
+
+        return NextResponse.json({ status: "SUCCESS", pakasirStatus, amount: tx.amount });
+      }
+
+      if (isFailed) {
+        await prisma.transaction.updateMany({
+          where: { id: tx.id, status: "PENDING" },
+          data: { status: "FAILED" },
+        });
+        return NextResponse.json({ status: "FAILED", pakasirStatus, amount: tx.amount });
+      }
+
+      return NextResponse.json({ status: "PENDING", pakasirStatus, amount: tx.amount });
     } catch {
-      // Jika Pakasir tidak bisa dihubungi, kembalikan status dari DB
       return NextResponse.json({ status: tx.status, amount: tx.amount, note: "gateway_unreachable" });
     }
   } catch (err) {
