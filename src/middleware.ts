@@ -20,7 +20,7 @@ async function isMaintenanceMode(): Promise<boolean> {
   }
 }
 
-export default auth((req: NextRequest & { auth: any }) => {
+export default auth(async (req: NextRequest & { auth: any }) => {
   const { pathname } = req.nextUrl;
   const isLoggedIn = !!req.auth;
   const isAdmin = req.auth?.user?.role === "ADMIN";
