@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { ResponseCookie } from "next/dist/compiled/@edge-runtime/cookies";
 
 export const dynamic = "force-dynamic";
 
@@ -7,14 +6,13 @@ export const dynamic = "force-dynamic";
  * GET /api/auth/clear-session
  *
  * Hard session clear — menghapus semua cookie sesi NextAuth v4 + v5
- * dengan meng-set setiap cookie ke maxAge=0 (expired).
+ * dengan mengirimkan header Set-Cookie maxAge=0 ke semua kombinasi domain.
  */
 export async function GET(req: NextRequest) {
-  const isSecure = req.url.startsWith("https://");
+  const url = new URL(req.url);
   const loginUrl = new URL("/login", req.url);
   const response = NextResponse.redirect(loginUrl, { status: 302 });
 
-  // Semua kemungkinan nama cookie NextAuth v4 + v5
   const cookieNames = [
     "authjs.session-token",
     "__Secure-authjs.session-token",
@@ -29,27 +27,28 @@ export async function GET(req: NextRequest) {
     "__Host-next-auth.csrf-token",
   ];
 
+  // Pastikan menghapus cookie di domain root maupun wildcard
+  // Jika URL localhost, hapus domain-nya, karena localhost tidak butuh dot prefix
+  const hostname = url.hostname;
+  const domains = hostname === "localhost" ? [undefined, "localhost"] : [undefined, hostname, `.${hostname}`];
+
   for (const name of cookieNames) {
-    const isHostPrefixed   = name.startsWith("__Host-");
-    const isSecurePrefixed = name.startsWith("__Secure-");
-    const needsSecure      = isSecure || isSecurePrefixed || isHostPrefixed;
+    for (const domain of domains) {
+      let cookieStr = `${name}=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+      
+      // Cookie dengan awalan __Host- tidak boleh memiliki atribut Domain
+      if (domain && !name.startsWith("__Host-")) {
+        cookieStr += `; Domain=${domain}`;
+      }
+      
+      if (name.startsWith("__Secure-") || name.startsWith("__Host-")) {
+        cookieStr += `; Secure`;
+      }
 
-    const opts: Partial<ResponseCookie> = {
-      value: "",
-      maxAge: 0,
-      path: "/",
-      httpOnly: true,
-      sameSite: "lax",
-      secure: needsSecure,
-    };
-
-    try {
-      response.cookies.set(name, "", opts);
-    } catch {
-      // Skip cookie yang memerlukan HTTPS di lingkungan non-HTTPS
+      response.headers.append("Set-Cookie", cookieStr);
     }
   }
 
-  console.log("[ClearSession] Cookie sesi dihapus → redirect /login");
+  console.log("[ClearSession] Sent strict Set-Cookie headers to blast session.");
   return response;
 }
