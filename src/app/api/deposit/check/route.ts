@@ -34,8 +34,8 @@ export async function GET(req: Request) {
 
       console.log(`${TAG} orderId=${orderId} pakasirStatus=${pakasirStatus}`);
 
-      const isSuccess = pakasirStatus === "success";
-      const isFailed  = pakasirStatus === "failed" || pakasirStatus === "expired";
+      const isSuccess = ["completed", "paid", "success"].includes(pakasirStatus);
+      const isFailed  = ["failed", "expired", "canceled", "cancelled"].includes(pakasirStatus);
 
       if (isSuccess) {
         // Fallback: webhook gagal → terapkan saldo via polling dengan supabaseAdmin
