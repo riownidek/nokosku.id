@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Smartphone, Wifi, Wallet,
-  History, ShieldCheck, LogOut,
+  History, ShieldCheck, LogOut, MessageCircle,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -84,8 +84,17 @@ export function Sidebar({ role }: { role?: string }) {
         )}
       </nav>
 
-      {/* Logout */}
-      <div className="border-t border-border p-3">
+      {/* Footer: CS + Logout */}
+      <div className="border-t border-border p-3 space-y-1">
+        <a
+          href="https://t.me/infonokoskuid"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="sidebar-link text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+        >
+          <MessageCircle className="h-4 w-4 shrink-0" />
+          Hubungi CS
+        </a>
         <a
           href="/api/auth/clear-session"
           className="sidebar-link text-destructive hover:text-destructive hover:bg-red-50"

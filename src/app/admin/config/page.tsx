@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import useSWR from "swr";
 import { motion } from "framer-motion";
-import { Edit2, Key, Image, Bell, Loader2, Mail, RefreshCw, TrendingUp } from "lucide-react";
+import { Edit2, Key, Image, Bell, Loader2, Mail, RefreshCw, TrendingUp, Power } from "lucide-react";
 import { toast } from "sonner";
 import { staggerContainer, staggerItem } from "@/components/motion";
 
@@ -116,7 +116,70 @@ export default function AdminConfigPage() {
         <p className="mt-1 text-sm text-muted-foreground">Kelola kredensial API, markup harga, dan tampilan website.</p>
       </motion.div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      {/* ── MAINTENANCE MODE ── */}
+        <motion.div variants={staggerItem} className="md:col-span-2">
+          <Card>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                  getConfigValue("maintenance_mode") === "true" ? "bg-amber-100" : "bg-muted"
+                }`}>
+                  <Power className={`h-5 w-5 ${
+                    getConfigValue("maintenance_mode") === "true" ? "text-amber-600" : "text-muted-foreground"
+                  }`} />
+                </div>
+                <div>
+                  <p className="font-bold text-foreground">Mode Pemeliharaan (Maintenance)</p>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    Jika diaktifkan, seluruh pengguna non-admin akan diarahkan ke halaman pemeliharaan.
+                    Admin tetap dapat mengakses semua fitur.
+                  </p>
+                </div>
+              </div>
+              <button
+                role="switch"
+                aria-checked={getConfigValue("maintenance_mode") === "true"}
+                onClick={async () => {
+                  const current = getConfigValue("maintenance_mode") === "true";
+                  setConfigValues((prev) => ({ ...prev, maintenance_mode: current ? "false" : "true" }));
+                  setSavingConfig("maintenance_mode");
+                  try {
+                    const res = await fetch("/api/admin/appconfig", {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ key: "maintenance_mode", value: current ? "false" : "true", label: "Mode Pemeliharaan", group: "system" }),
+                    });
+                    if (!res.ok) throw new Error();
+                    toast.success(current ? "Maintenance dinonaktifkan" : "Maintenance diaktifkan!");
+                    mutateConfigs();
+                  } catch { toast.error("Gagal mengubah status maintenance"); }
+                  finally { setSavingConfig(""); }
+                }}
+                disabled={savingConfig === "maintenance_mode"}
+                className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50 ${
+                  getConfigValue("maintenance_mode") === "true" ? "bg-amber-500" : "bg-muted-foreground/30"
+                }`}
+              >
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
+                  getConfigValue("maintenance_mode") === "true" ? "translate-x-8" : "translate-x-1"
+                }`} />
+              </button>
+            </div>
+            {getConfigValue("maintenance_mode") === "true" && (
+              <div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400" />
+                </span>
+                <p className="text-sm font-semibold text-amber-700">Mode Pemeliharaan sedang AKTIF. Pengguna biasa tidak dapat mengakses situs.</p>
+              </div>
+            )}
+          </Card>
+        </motion.div>
+
+      <div className="md:col-span-2">
+        <div className="grid gap-6 md:grid-cols-2">
+
         {/* ── KURS USD → IDR (Real-time) ── */}
         <motion.div variants={staggerItem}>
           <Card>
@@ -261,6 +324,7 @@ export default function AdminConfigPage() {
           ))}
         </motion.div>
       </div>
+    </div>
     </motion.div>
   );
 }
