@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import useSWR from "swr";
 import { motion } from "framer-motion";
 import { Edit2, Key, Image, Bell, Loader2, Mail, RefreshCw, TrendingUp } from "lucide-react";
@@ -24,29 +24,32 @@ export default function AdminConfigPage() {
   const { data: settings, mutate: mutateSettings } = useSWR("/api/admin/settings", fetcher);
   const { data: appConfigs, mutate: mutateConfigs } = useSWR("/api/admin/appconfig", fetcher);
 
-  const [markupPercent, setMarkupPercent] = useState("");
-  const [markupPpobAmount, setMarkupPpobAmount] = useState("");
-  const [commissionPercent, setCommissionPercent] = useState("");
-  const [minDeposit, setMinDeposit] = useState("");
+  const [markupPercent, setMarkupPercent] = useState("0");
+  const [markupPpobAmount, setMarkupPpobAmount] = useState("0");
+  const [commissionPercent, setCommissionPercent] = useState("0");
+  const [minDeposit, setMinDeposit] = useState("10000");
   const [isUpdating, setIsUpdating] = useState(false);
   const [isSyncing, setIsSyncing]   = useState(false);
 
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [savingConfig, setSavingConfig] = useState("");
 
-  if (settings && !markupPercent) {
+  // ── Init state dari data fetched — gunakan useEffect agar tidak crash ────
+  useEffect(() => {
+    if (!settings) return;
     const m = settings.find((s: any) => s.key === "markup_percent");
     const c = settings.find((s: any) => s.key === "referral_commission_percent");
     const p = settings.find((s: any) => s.key === "markup_ppob_percent");
-    if (m) setMarkupPercent(m.value);
-    if (c) setCommissionPercent(c.value);
-    if (p) setMarkupPpobAmount(p.value);
-  }
-  // min_deposit_amount dari AppConfig
-  if (appConfigs && !minDeposit) {
+    if (m?.value !== undefined) setMarkupPercent(m.value);
+    if (c?.value !== undefined) setCommissionPercent(c.value);
+    if (p?.value !== undefined) setMarkupPpobAmount(p.value);
+  }, [settings]);
+
+  useEffect(() => {
+    if (!appConfigs) return;
     const md = appConfigs.find((c: any) => c.key === "min_deposit_amount");
-    if (md) setMinDeposit(md.value);
-  }
+    if (md?.value !== undefined) setMinDeposit(md.value);
+  }, [appConfigs]);
 
   const handleSyncRate = async () => {
     setIsSyncing(true);

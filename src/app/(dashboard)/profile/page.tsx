@@ -188,7 +188,7 @@ export default function ProfilePage() {
           <button
             onClick={async () => {
               setLoggingOut(true);
-              try { await signOut({ callbackUrl: "/" }); } catch { setLoggingOut(false); }
+              await signOut({ callbackUrl: "/login", redirect: true });
             }}
             disabled={loggingOut}
             className="flex w-full items-center gap-3 px-4 py-3.5 rounded-2xl bg-red-50 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-60"

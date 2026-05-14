@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { Bell, ChevronDown, LogOut, LayoutDashboard, Wallet, Plus, ShieldCheck, User } from "lucide-react";
+import { Bell, ChevronDown, LogOut, LayoutDashboard, Wallet, Plus, ShieldCheck, User, Code2, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import useSWR from "swr";
@@ -13,6 +13,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 export function Header() {
   const { data: session } = useSession();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   // Fetch live balance
   const { data: profile } = useSWR(
@@ -152,6 +153,14 @@ export function Header() {
                   >
                     <Wallet className="h-4 w-4" /> Isi Saldo
                   </Link>
+                  {/* Dokumentasi API — selalu tampil */}
+                  <Link
+                    href="/api-docs"
+                    onClick={() => setDropdownOpen(false)}
+                    className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  >
+                    <Code2 className="h-4 w-4" /> Dokumentasi API
+                  </Link>
                   {/* Panel Admin — hanya tampil jika role ADMIN */}
                   {(session?.user as any)?.role === "ADMIN" && (
                     <Link
@@ -164,10 +173,15 @@ export function Header() {
                     </Link>
                   )}
                   <button
-                    onClick={() => signOut({ callbackUrl: "/login" })}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors"
+                    disabled={loggingOut}
+                    onClick={async () => {
+                      setLoggingOut(true);
+                      await signOut({ callbackUrl: "/login", redirect: true });
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-60"
                   >
-                    <LogOut className="h-4 w-4" /> Keluar
+                    {loggingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+                    {loggingOut ? "Keluar..." : "Keluar"}
                   </button>
                 </motion.div>
               </>
