@@ -10,8 +10,12 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
-  const loginUrl = new URL("/login", req.url);
-  const response = NextResponse.redirect(loginUrl, { status: 302 });
+  
+  // Menggunakan relative path untuk menghindari isu proksi Render (localhost:10000)
+  const response = new NextResponse(null, {
+    status: 302,
+    headers: { Location: "/login" },
+  });
 
   const cookieNames = [
     "authjs.session-token",
@@ -28,11 +32,13 @@ export async function GET(req: NextRequest) {
   ];
 
   // Pastikan menghapus cookie di domain root maupun wildcard
-  // Jika URL localhost, hapus domain-nya, karena localhost tidak butuh dot prefix
-  const hostname = url.hostname;
-  const domains = hostname === "localhost" 
+  // Gunakan header 'x-forwarded-host' atau 'host' agar tidak membaca 'localhost' saat di balik proksi Render
+  const hostHeader = req.headers.get("x-forwarded-host") || req.headers.get("host");
+  const realHostname = hostHeader ? hostHeader.split(":")[0] : url.hostname;
+  
+  const domains = realHostname === "localhost" 
     ? [undefined, "localhost"] 
-    : [undefined, hostname, `.${hostname}`, `www.${hostname.replace('www.', '')}`];
+    : [undefined, realHostname, `.${realHostname}`, `www.${realHostname.replace('www.', '')}`];
 
   for (const name of cookieNames) {
     for (const domain of domains) {
