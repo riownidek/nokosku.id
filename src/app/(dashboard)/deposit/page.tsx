@@ -452,9 +452,10 @@ export default function DepositPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<any>(null);
 
-  // Ambil minDeposit dinamis dari AppConfig
+  // Ambil minDeposit dinamis dari AppConfig — fallback 10.000 hanya jika belum dikonfigurasi
   const { data: pubConfig } = useSWR("/api/appconfig/public", fetcher, { revalidateOnFocus: false });
-  const minDeposit = parseInt(pubConfig?.min_deposit_amount ?? "0") || 10_000;
+  const rawMin = parseInt(pubConfig?.min_deposit_amount ?? "");
+  const minDeposit = !isNaN(rawMin) && rawMin > 0 ? rawMin : 10_000;
 
   const handleConfirm = async () => {
     if (!method || amount < minDeposit) return;

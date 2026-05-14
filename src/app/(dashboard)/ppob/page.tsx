@@ -204,6 +204,7 @@ export default function PPOBPage() {
   const [lastOrder, setLastOrder] = useState<any>(null);
 
   const services: any[] = data?.services ?? [];
+  const apiError: string | null = data?.error ?? null;
 
   // Ekstrak kategori unik
   const categories = ["Semua", ...Array.from(new Set(services.map((s) => s.category as string))).sort()];
@@ -317,6 +318,23 @@ export default function PPOBPage() {
             <p className="text-xs text-red-500 mt-1">
               {error?.message ?? "Periksa koneksi atau konfigurasi API Key Jagoanpedia"}
             </p>
+          </div>
+        ) : apiError ? (
+          /* Error deskriptif dari server (API Key belum diisi / layanan kosong) */
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">⚠️</span>
+              <p className="text-sm font-bold text-amber-800">Layanan PPOB Tidak Tersedia</p>
+            </div>
+            <p className="text-xs text-amber-700 leading-relaxed">{apiError}</p>
+            <div className="rounded-xl bg-amber-100 border border-amber-200 p-3">
+              <p className="text-[11px] font-semibold text-amber-800">Langkah perbaikan untuk Admin:</p>
+              <ol className="text-[11px] text-amber-700 mt-1 space-y-1 list-decimal list-inside">
+                <li>Tambahkan <code className="bg-amber-200 px-1 rounded">JAGOANPEDIA_API_KEY</code> ke environment variables Vercel/Netlify</li>
+                <li>Deploy ulang aplikasi setelah menambahkan env var</li>
+                <li>Pastikan akun Jagoanpedia masih aktif dan memiliki saldo</li>
+              </ol>
+            </div>
           </div>
         ) : filtered.length === 0 ? (
           <div className="rounded-2xl border border-border bg-card py-16 text-center">

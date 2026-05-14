@@ -27,7 +27,6 @@ export default function AdminConfigPage() {
   const [markupPercent, setMarkupPercent] = useState("0");
   const [markupPpobAmount, setMarkupPpobAmount] = useState("0");
   const [commissionPercent, setCommissionPercent] = useState("0");
-  const [minDeposit, setMinDeposit] = useState("10000");
   const [isUpdating, setIsUpdating] = useState(false);
   const [isSyncing, setIsSyncing]   = useState(false);
 
@@ -44,12 +43,6 @@ export default function AdminConfigPage() {
     if (c?.value !== undefined) setCommissionPercent(c.value);
     if (p?.value !== undefined) setMarkupPpobAmount(p.value);
   }, [settings]);
-
-  useEffect(() => {
-    if (!appConfigs) return;
-    const md = appConfigs.find((c: any) => c.key === "min_deposit_amount");
-    if (md?.value !== undefined) setMinDeposit(md.value);
-  }, [appConfigs]);
 
   const handleSyncRate = async () => {
     setIsSyncing(true);
@@ -202,7 +195,7 @@ export default function AdminConfigPage() {
             </Card>
           ))}
 
-          {/* Minimal Deposit — disimpan ke AppConfig */}
+          {/* Minimal Deposit — disimpan ke AppConfig via getConfigValue pattern */}
           <Card>
             <p className="font-bold text-foreground">Minimal Deposit (Rp)</p>
             <p className="text-sm text-muted-foreground mt-0.5 mb-3">Nominal minimum yang dapat di-deposit oleh pengguna. Default: Rp 10.000.</p>
@@ -210,8 +203,9 @@ export default function AdminConfigPage() {
               <div className="relative flex-1 max-w-[180px]">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">Rp</span>
                 <input
-                  type="number" min="1000" step="1000" value={minDeposit}
-                  onChange={(e) => setMinDeposit(e.target.value)}
+                  type="number" min="1000" step="1000"
+                  value={getConfigValue("min_deposit_amount") || "10000"}
+                  onChange={(e) => setConfigValues((prev) => ({ ...prev, min_deposit_amount: e.target.value }))}
                   className="w-full rounded-xl border border-input bg-background pl-9 pr-4 py-2.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
               </div>
