@@ -56,7 +56,8 @@ export async function POST(req: Request) {
     // ── Cross-verify dengan Pakasir API (anti payload manipulation) ──────────
     let verified: Awaited<ReturnType<typeof verifyPakasirTransaction>>;
     try {
-      verified = await verifyPakasirTransaction(order_id);
+      const payloadProject = body?.project;
+      verified = await verifyPakasirTransaction(order_id, payloadProject);
     } catch (verifyErr) {
       console.error(`${TAG} Failed to verify with Pakasir API:`, verifyErr);
       // Verifikasi gagal → jangan proses saldo, tapi tetap 200 agar tidak retry berlebihan

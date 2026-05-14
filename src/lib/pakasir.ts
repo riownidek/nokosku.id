@@ -171,18 +171,26 @@ export async function createPakasirDeposit(
  * Verifikasi status transaksi di Pakasir (cross-check webhook sebelum update saldo).
  * Throws jika API key tidak dikonfigurasi atau Pakasir mengembalikan error.
  */
-export async function verifyPakasirTransaction(orderId: string): Promise<PakasirCheckResponse> {
-  const { apiKey, project } = await getPakasirCredentials();
+export async function verifyPakasirTransaction(orderId: string, projectOverride?: string): Promise<PakasirCheckResponse> {
+  const { apiKey, project: dbProject } = await getPakasirCredentials();
+  
+  const projectToUse = projectOverride || dbProject;
 
   let res: Response;
   try {
     res = await fetch(`${PAKASIR_BASE}/transactioncheck`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ project, order_id: orderId, api_key: apiKey }),
+      body: JSON.stringify({ project: projectToUse, order_id: orderId, api_key: apiKey }),
     });
   } catch (networkErr: any) {
     throw new Error(`Pakasir verify tidak dapat dihubungi: ${networkErr?.message ?? "Network error"}`);
+  }
+
+  // Jika 404 dan kita belum menggunakan projectOverride, coba fallback ke "nokosmu" (legacy project)
+  if (res.status === 404 && !projectOverride && projectToUse !== "nokosmu") {
+    console.warn(`[PAKASIR] Order ${orderId} not found in project ${projectToUse}. Attempting legacy fallback to 'nokosmu'...`);
+    return verifyPakasirTransaction(orderId, "nokosmu");
   }
 
   if (!res.ok) {
