@@ -2,12 +2,26 @@ import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-async function isMaintenanceMode(req: NextRequest): Promise<boolean> {
+// Edge-safe: baca langsung dari Supabase REST API — TANPA Prisma / TCP
+async function isMaintenanceMode(): Promise<boolean> {
   try {
-    const res = await fetch(`${req.nextUrl.origin}/api/system/maintenance`, { cache: "no-store" });
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !serviceKey) return false;
+
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/app_configs?key=eq.maintenance_mode&select=value&limit=1`,
+      {
+        headers: {
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+        },
+        cache: "no-store",
+      }
+    );
     if (!res.ok) return false;
     const data = await res.json();
-    return data?.maintenance === true;
+    return data?.[0]?.value === "true";
   } catch {
     return false;
   }
@@ -53,7 +67,7 @@ export default auth(async (req: NextRequest & { auth: any }) => {
   }
 
   // ── Maintenance mode — hanya Admin yang boleh masuk ──────────────────────
-  const isMaintenance = await isMaintenanceMode(req);
+  const isMaintenance = await isMaintenanceMode();
   if (isMaintenance && !isAdmin && pathname !== "/maintenance" && !isPublic) {
     return NextResponse.redirect(new URL("/maintenance", req.url));
   }
