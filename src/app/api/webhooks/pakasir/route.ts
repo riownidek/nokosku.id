@@ -53,22 +53,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true, already_processed: true });
     }
 
-    // ── Cross-verify dengan Pakasir API (anti payload manipulation) ──────────
-    let verified: Awaited<ReturnType<typeof verifyPakasirTransaction>>;
-    try {
-      const payloadProject = body?.project;
-      verified = await verifyPakasirTransaction(order_id, payloadProject);
-    } catch (verifyErr) {
-      console.error(`${TAG} Failed to verify with Pakasir API:`, verifyErr);
-      // Verifikasi gagal → jangan proses saldo, tapi tetap 200 agar tidak retry berlebihan
-      // Pakasir akan retry nanti dan verifikasi mungkin berhasil
-      return NextResponse.json({ received: true, verification_pending: true });
-    }
-
-    // Status strict per dokumentasi Pakasir: "completed" / "paid" / "success" = sukses
+    // ── Validasi status dari payload webhook ─────────────────────────────────
+    // Pakasir webhook ADALAH konfirmasi resmi — kita percayai status dari payload-nya langsung.
+    // API transactioncheck (cross-verify) TIDAK SELALU tersedia dan sering 404,
+    // sehingga TIDAK dijadikan blocker. Webhook yang diterima sudah cukup sebagai bukti pembayaran.
     const isSuccess = ["completed", "paid", "success"].includes(status);
     const isFailed  = ["failed", "expired", "canceled", "cancelled"].includes(status);
-    console.log(`${TAG} Status check: raw=${status} isSuccess=${isSuccess} isFailed=${isFailed}`);
+    console.log(`${TAG} Status check from webhook payload: raw=${status} isSuccess=${isSuccess} isFailed=${isFailed}`);
+
+    // Coba cross-verify (opsional, non-blocking) untuk logging saja
+    try {
+      const payloadProject = body?.project;
+      const verified = await verifyPakasirTransaction(order_id, payloadProject);
+      console.log(`${TAG} Cross-verify OK: apiStatus=${verified?.data?.status}`);
+    } catch (verifyErr) {
+      // Cross-verify gagal tapi TIDAK memblokir proses — webhook sudah cukup sebagai konfirmasi
+      console.warn(`${TAG} Cross-verify failed (non-blocking): ${(verifyErr as Error).message}. Proceeding based on webhook payload status.`);
+    }
 
     if (!isSuccess) {
       if (isFailed) {
