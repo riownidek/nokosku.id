@@ -17,14 +17,16 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const isAdmin = (session.user as any).role === "ADMIN";
 
   // ── Maintenance mode check — server-side, reliable, tidak terpengaruh Edge runtime ──
+  // ── Maintenance mode: query dulu, redirect DI LUAR try/catch agar NEXT_REDIRECT tidak tertelan ──
   if (!isAdmin) {
+    let maintenanceActive = false;
     try {
       const cfg = await prisma.appConfig.findUnique({ where: { key: "maintenance_mode" } });
-      console.log(`[Layout Maintenance] value="${cfg?.value}" isActive=${cfg?.value === "true"}`);
-      if (cfg?.value === "true") redirect("/maintenance");
+      maintenanceActive = cfg?.value === "true";
     } catch (e: any) {
       console.error("[Layout Maintenance] Prisma error:", e?.message ?? e);
     }
+    if (maintenanceActive) redirect("/maintenance");
   }
 
   return (
