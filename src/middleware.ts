@@ -2,30 +2,6 @@ import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Edge-safe: baca langsung dari Supabase REST API — TANPA Prisma / TCP
-async function isMaintenanceMode(): Promise<boolean> {
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !serviceKey) return false;
-
-    const res = await fetch(
-      `${supabaseUrl}/rest/v1/app_configs?key=eq.maintenance_mode&select=value&limit=1`,
-      {
-        headers: {
-          apikey: serviceKey,
-          Authorization: `Bearer ${serviceKey}`,
-        },
-        cache: "no-store",
-      }
-    );
-    if (!res.ok) return false;
-    const data = await res.json();
-    return data?.[0]?.value === "true";
-  } catch {
-    return false;
-  }
-}
 
 export default auth(async (req: NextRequest & { auth: any }) => {
   const { pathname } = req.nextUrl;
@@ -63,16 +39,6 @@ export default auth(async (req: NextRequest & { auth: any }) => {
 
   // ── Non-admin → tidak boleh akses /admin ─────────────────────────────────
   if (pathname.startsWith("/admin") && !isAdmin) {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
-  }
-
-  // ── Maintenance mode — hanya Admin yang boleh masuk ──────────────────────
-  const isMaintenance = await isMaintenanceMode();
-  if (isMaintenance && !isAdmin && pathname !== "/maintenance" && !isPublic) {
-    return NextResponse.redirect(new URL("/maintenance", req.url));
-  }
-  // Jika maintenance aktif dan Admin mencoba akses /maintenance, arahkan ke dashboard
-  if (isMaintenance && isAdmin && pathname === "/maintenance") {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 

@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import { Sidebar } from "@/components/sidebar";
 import { Header } from "@/components/header";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
@@ -10,6 +11,16 @@ import type { ReactNode } from "react";
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
+
+  const isAdmin = (session.user as any).role === "ADMIN";
+
+  // ── Maintenance mode check — server-side, reliable, tidak terpengaruh Edge runtime ──
+  if (!isAdmin) {
+    try {
+      const cfg = await prisma.appConfig.findUnique({ where: { key: "maintenance_mode" } });
+      if (cfg?.value === "true") redirect("/maintenance");
+    } catch { /* DB tidak bisa diakses — biarkan masuk, jangan blokir */ }
+  }
 
   return (
     <div className="flex min-h-screen" style={{ background: "hsl(var(--background))" }}>
