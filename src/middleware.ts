@@ -2,19 +2,12 @@ import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Baca status maintenance langsung dari Supabase REST (tanpa Prisma agar edge-safe)
-async function isMaintenanceMode(): Promise<boolean> {
+async function isMaintenanceMode(req: NextRequest): Promise<boolean> {
   try {
-    const dbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const dbKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!dbUrl || !dbKey) return false;
-    const res = await fetch(
-      `${dbUrl}/rest/v1/app_configs?key=eq.maintenance_mode&select=value`,
-      { headers: { apikey: dbKey, Authorization: `Bearer ${dbKey}` }, cache: "no-store" }
-    );
+    const res = await fetch(`${req.nextUrl.origin}/api/system/maintenance`, { cache: "no-store" });
     if (!res.ok) return false;
     const data = await res.json();
-    return data?.[0]?.value === "true";
+    return data?.maintenance === true;
   } catch {
     return false;
   }
@@ -34,6 +27,7 @@ export default auth(async (req: NextRequest & { auth: any }) => {
     "/api/webhooks",         // Webhook Pakasir
     "/api/appconfig/public", // Banner & config publik
     "/api/payment-methods",  // Metode deposit (diperlukan di Step 2 wizard)
+    "/api/system",           // System routes like maintenance check
   ];
   const publicPages = ["/", "/login", "/register", "/terms", "/maintenance"];
 
@@ -59,7 +53,7 @@ export default auth(async (req: NextRequest & { auth: any }) => {
   }
 
   // ── Maintenance mode — hanya Admin yang boleh masuk ──────────────────────
-  const isMaintenance = await isMaintenanceMode();
+  const isMaintenance = await isMaintenanceMode(req);
   if (isMaintenance && !isAdmin && pathname !== "/maintenance" && !isPublic) {
     return NextResponse.redirect(new URL("/maintenance", req.url));
   }
