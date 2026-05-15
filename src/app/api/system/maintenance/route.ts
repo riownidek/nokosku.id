@@ -1,36 +1,25 @@
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
-// Edge-safe: gunakan Supabase REST + Service Role Key — TANPA Prisma / TCP connection
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !serviceKey) {
-      return NextResponse.json({ maintenance: false }, { headers: { "Cache-Control": "no-store" } });
-    }
-
-    const res = await fetch(
-      `${supabaseUrl}/rest/v1/app_configs?key=eq.maintenance_mode&select=value&limit=1`,
-      {
-        headers: {
-          apikey: serviceKey,
-          Authorization: `Bearer ${serviceKey}`,
-          "Content-Type": "application/json",
-        },
-        cache: "no-store",
-      }
+    const cfg = await prisma.appConfig.findUnique({
+      where: { key: "maintenance_mode" },
+    });
+    const rawValue = cfg?.value ?? "(not found)";
+    console.log(`[Maintenance API] raw value from DB: "${rawValue}"`);
+    const maintenance = rawValue === "true";
+    return NextResponse.json(
+      { maintenance, _debug: rawValue },
+      { headers: { "Cache-Control": "no-store" } }
     );
-
-    if (!res.ok) {
-      return NextResponse.json({ maintenance: false }, { headers: { "Cache-Control": "no-store" } });
-    }
-
-    const data = await res.json();
-    const maintenance = data?.[0]?.value === "true";
-
-    return NextResponse.json({ maintenance }, { headers: { "Cache-Control": "no-store" } });
-  } catch {
-    return NextResponse.json({ maintenance: false }, { headers: { "Cache-Control": "no-store" } });
+  } catch (e: any) {
+    console.error("[Maintenance API] Prisma error:", e?.message ?? e);
+    return NextResponse.json(
+      { maintenance: false, error: e?.message },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   }
 }

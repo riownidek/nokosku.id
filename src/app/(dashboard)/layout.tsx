@@ -8,6 +8,8 @@ import { AutoLogout } from "@/components/auto-logout";
 import { Toaster } from "sonner";
 import type { ReactNode } from "react";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
@@ -18,8 +20,11 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   if (!isAdmin) {
     try {
       const cfg = await prisma.appConfig.findUnique({ where: { key: "maintenance_mode" } });
+      console.log(`[Layout Maintenance] value="${cfg?.value}" isActive=${cfg?.value === "true"}`);
       if (cfg?.value === "true") redirect("/maintenance");
-    } catch { /* DB tidak bisa diakses — biarkan masuk, jangan blokir */ }
+    } catch (e: any) {
+      console.error("[Layout Maintenance] Prisma error:", e?.message ?? e);
+    }
   }
 
   return (
