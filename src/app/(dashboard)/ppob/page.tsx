@@ -357,6 +357,49 @@ export default function PPOBPage() {
         </div>
       </motion.div>
 
+      {/* ── PPOB Maintenance Banner — ubah PPOB_MAINTENANCE ke false jika layanan aktif kembali ── */}
+      {(true) && (
+        <motion.div
+          variants={staggerItem}
+          className="rounded-2xl border border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50 p-6 space-y-4"
+        >
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-100">
+              <span className="text-2xl">🔧</span>
+            </div>
+            <div className="flex-1">
+              <h2 className="text-base font-black text-orange-900">Layanan PPOB Sedang Dalam Pemeliharaan</h2>
+              <p className="text-sm text-orange-700 mt-1 leading-relaxed">
+                Kami sedang melakukan penyesuaian keamanan dengan sistem pihak ketiga
+                agar layanan dapat berjalan lebih stabil. Mohon maaf atas ketidaknyamanannya.
+              </p>
+            </div>
+          </div>
+          <div className="rounded-xl bg-white/70 border border-orange-200 px-4 py-3 space-y-2">
+            <p className="text-xs font-bold text-orange-800 uppercase tracking-wide">Layanan yang masih tersedia:</p>
+            <div className="flex flex-wrap gap-2">
+              <a href="/otp" className="flex items-center gap-1.5 text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded-full font-semibold hover:bg-blue-200 transition-colors">
+                📱 Jasa OTP
+              </a>
+              <a href="/deposit" className="flex items-center gap-1.5 text-xs bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-full font-semibold hover:bg-emerald-200 transition-colors">
+                💰 Top Up Saldo
+              </a>
+            </div>
+          </div>
+          <a
+            href="https://t.me/infonokoskuid"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-xl bg-orange-500 hover:bg-orange-600 px-4 py-2.5 text-sm font-bold text-white transition-colors"
+          >
+            💬 Hubungi CS via Telegram
+          </a>
+        </motion.div>
+      )}
+      {/* ── Sembunyikan seluruh konten PPOB saat maintenance ── */}
+      {!(true) && (
+        <>
+
       {/* Success Banner */}
       <AnimatePresence>
         {lastOrder && (
@@ -460,6 +503,8 @@ export default function PPOBPage() {
           />
         )}
       </AnimatePresence>
+        </>
+      )}
     </motion.div>
   );
 }
