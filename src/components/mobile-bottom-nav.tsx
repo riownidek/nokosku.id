@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Smartphone, History, User, ShoppingBag } from "lucide-react";
+import { LayoutDashboard, Smartphone, History, User, ShoppingBag, MessageCircle } from "lucide-react";
 import { motion } from "framer-motion";
+
 
 const LEFT_NAV = [
   { href: "/dashboard", label: "Beranda",  Icon: LayoutDashboard },
@@ -14,6 +15,9 @@ const RIGHT_NAV = [
   { href: "/history",  label: "Riwayat",  Icon: History },
   { href: "/profile",  label: "Profil",   Icon: User },
 ];
+
+const CS_LINK = "https://t.me/infonokoskuid";
+
 
 function NavItem({ href, label, Icon, isActive }: {
   href: string; label: string; Icon: React.ElementType; isActive: boolean;
@@ -65,6 +69,15 @@ export function MobileBottomNav() {
         {LEFT_NAV.map((item) => <NavItem key={item.href} {...item} isActive={active(item.href)} />)}
         <FABItem />
         {RIGHT_NAV.map((item) => <NavItem key={item.href} {...item} isActive={active(item.href)} />)}
+        {/* CS Button */}
+        <a href={CS_LINK} target="_blank" rel="noopener noreferrer"
+          className="flex flex-1 flex-col items-center gap-0.5 py-1.5">
+          <motion.div whileTap={{ scale: 0.80 }} transition={{ type: "spring", stiffness: 600, damping: 30 }}
+            className="flex h-7 w-7 items-center justify-center rounded-xl transition-colors">
+            <MessageCircle className="h-[18px] w-[18px] text-emerald-500" />
+          </motion.div>
+          <span className="text-[9.5px] font-semibold leading-none text-emerald-500">CS</span>
+        </a>
       </div>
     </nav>
   );

@@ -93,6 +93,21 @@ model AppConfig {
   @@map("app_configs")
 }
 
+// ─── OtpService: layanan pilihan cepat OTP yang dikelola Admin ──────────────────────
+model OtpService {
+  id        String   @id @default(uuid())
+  name      String
+  code      String   @unique  // Kode layanan Hero-SMS (contoh: "wa", "mnt")
+  emoji     String   @default("📱")
+  isHot     Boolean  @default(false) @map("is_hot")
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("otp_services")
+}
+
 // ─── PaymentMethod: metode deposit dinamis dikelola via Admin Panel ───────────
 model PaymentMethod {
   id               String   @id @default(uuid())

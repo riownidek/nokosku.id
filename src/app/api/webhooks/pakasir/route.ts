@@ -21,8 +21,8 @@ export async function POST(req: Request) {
 
   // Payload resmi Pakasir: { order_id, status, amount, payment_method, completed_at }
   const order_id = body?.order_id ?? body?.reference ?? body?.data?.order_id;
-  const status   = (body?.status ?? body?.data?.status ?? "").toLowerCase();
-  const amount   = Number(body?.amount ?? body?.data?.amount ?? 0);
+  const status = (body?.status ?? body?.data?.status ?? "").toLowerCase();
+  const amount = Number(body?.amount ?? body?.data?.amount ?? 0);
 
   if (!order_id || !status) {
     console.error(`${TAG} Missing order_id or status`);
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     // API transactioncheck (cross-verify) TIDAK SELALU tersedia dan sering 404,
     // sehingga TIDAK dijadikan blocker. Webhook yang diterima sudah cukup sebagai bukti pembayaran.
     const isSuccess = ["completed", "paid", "success"].includes(status);
-    const isFailed  = ["failed", "expired", "canceled", "cancelled"].includes(status);
+    const isFailed = ["failed", "expired", "canceled", "cancelled"].includes(status);
     console.log(`${TAG} Status check from webhook payload: raw=${status} isSuccess=${isSuccess} isFailed=${isFailed}`);
 
     // Coba cross-verify (opsional, non-blocking) untuk logging saja

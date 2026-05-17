@@ -24,13 +24,14 @@ const POPULAR_SERVICES = [
   { code: "fb", name: "Facebook",  emoji: "👍" },
 ];
 
+// Brazil diganti Inggris Raya (Hero-SMS country ID 22 = United Kingdom)
 const POPULAR_COUNTRIES = [
   { id: 6,  name: "Indonesia",       flag: "🇮🇩" },
   { id: 4,  name: "Filipina",        flag: "🇵🇭" },
   { id: 7,  name: "Malaysia",        flag: "🇲🇾" },
   { id: 12, name: "Amerika Serikat", flag: "🇺🇸" },
   { id: 16, name: "India",           flag: "🇮🇳" },
-  { id: 73, name: "Brasil",          flag: "🇧🇷" },
+  { id: 22, name: "Inggris Raya",    flag: "🇬🇧" },
   { id: 32, name: "Kanada",          flag: "🇨🇦" },
   { id: 36, name: "Vietnam",         flag: "🇻🇳" },
   { id: 44, name: "Thailand",        flag: "🇹🇭" },
@@ -38,6 +39,8 @@ const POPULAR_COUNTRIES = [
 
 // Array semua layanan untuk dropdown "Lainnya"
 const ALL_SERVICES = Object.entries(SERVICE_NAMES).map(([code, name]) => ({ code, name }));
+
+interface QuickService { id: string; name: string; code: string; emoji: string; isHot: boolean; }
 
 export type SelectedService = { code: string; name: string; emoji?: string };
 export type SelectedCountry = { id: number; name: string; flag?: string };
@@ -53,8 +56,11 @@ interface ActiveOrder {
 export default function OTPPage() {
   const { data: config } = useSWR("/api/appconfig/public", fetcher, { revalidateOnFocus: false });
   const markupPercent = parseFloat(config?.markup_percent ?? "0");
-  
-  // Ambil daftar 180+ negara dari API (Fast Response dipertahankan karena berjalan asinkron)
+
+  // Ambil layanan pilihan cepat dinamis dari DB via API
+  const { data: quickServices } = useSWR<QuickService[]>("/api/otp/quick-services", fetcher, { revalidateOnFocus: false });
+
+  // Ambil daftar 180+ negara dari API
   const { data: allCountriesList } = useSWR<{id:number; name:string}[]>("/api/otp/countries", fetcher, { revalidateOnFocus: false });
 
   const [selectedService, setSelectedService] = useState<SelectedService | null>(null);
@@ -203,7 +209,7 @@ export default function OTPPage() {
                 <label className="text-sm font-bold text-foreground">Pilih Layanan</label>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                {POPULAR_SERVICES.map((svc) => {
+                {(quickServices ?? []).map((svc) => {
                   const isSelected = selectedService?.code === svc.code;
                   return (
                     <motion.button
@@ -211,16 +217,19 @@ export default function OTPPage() {
                       whileHover={{ scale: 1.03 }}
                       whileTap={{ scale: 0.96 }}
                       transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                      onClick={() => {
-                        setSelectedService(isSelected ? null : svc);
-                      }}
+                      onClick={() => setSelectedService(isSelected ? null : { code: svc.code, name: svc.name, emoji: svc.emoji })}
                       className={cn(
-                        "flex flex-col items-center gap-1 rounded-xl border py-3 px-2 text-xs font-semibold transition-all",
+                        "relative flex flex-col items-center gap-1 rounded-xl border py-3 px-2 text-xs font-semibold transition-all",
                         isSelected
                           ? "border-primary bg-primary/10 text-primary shadow-sm shadow-primary/20"
                           : "border-border bg-background text-foreground hover:border-primary/40"
                       )}
                     >
+                      {svc.isHot && (
+                        <span className="absolute -top-1.5 -right-1 bg-orange-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full leading-none">
+                          🔥HOT
+                        </span>
+                      )}
                       <span className="text-xl leading-none">{svc.emoji}</span>
                       <span className="truncate w-full text-center">{svc.name}</span>
                     </motion.button>
