@@ -2,30 +2,40 @@ import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-
 export default auth(async (req: NextRequest & { auth: any }) => {
   const { pathname } = req.nextUrl;
   const isLoggedIn = !!req.auth;
-  const isAdmin = req.auth?.user?.role === "ADMIN";
+  const isAdmin    = req.auth?.user?.role === "ADMIN";
 
-  // ── Public routes — tidak memerlukan sesi aktif ───────────────────────────
-  // API: semua /api/auth/*, /api/register, /api/webhooks/*, /api/appconfig/public
-  // Pages: /, /login, /register, /terms
+  // ── Admin Subdomain Routing ────────────────────────────────────────────────
+  // Jika diakses via admin.nokosku.id, rewrite ke /admin/* paths
+  const hostHeader = req.headers.get("x-forwarded-host") || req.headers.get("host") || "";
+  const isAdminSubdomain = hostHeader.startsWith("admin.");
+
+  if (isAdminSubdomain) {
+    // Bypass maintenance & public check untuk admin subdomain
+    const adminPath = pathname === "/" ? "/admin" : `/admin${pathname}`;
+    req.nextUrl.pathname = adminPath;
+    return NextResponse.rewrite(req.nextUrl);
+  }
+
+  // ── Public routes ─────────────────────────────────────────────────────────
   const publicPrefixes = [
-    "/api/auth",             // NextAuth internals
-    "/api/register",         // Registrasi akun baru
-    "/api/webhooks",         // Webhook Pakasir
-    "/api/appconfig/public", // Banner & config publik
-    "/api/payment-methods",  // Metode deposit (diperlukan di Step 2 wizard)
-    "/api/system",           // System routes like maintenance check
+    "/api/auth",
+    "/api/register",
+    "/api/webhooks",
+    "/api/appconfig/public",
+    "/api/payment-methods",
+    "/api/system",
+    "/api/otp/quick-services",
   ];
   const publicPages = ["/", "/login", "/register", "/terms", "/maintenance"];
 
-  const isPublicAPI = publicPrefixes.some((p) => pathname.startsWith(p));
+  const isPublicAPI  = publicPrefixes.some((p) => pathname.startsWith(p));
   const isPublicPage = publicPages.includes(pathname);
-  const isPublic = isPublicAPI || isPublicPage;
+  const isPublic     = isPublicAPI || isPublicPage;
 
-  // ── Unauthenticated → redirect ke login (kecuali halaman/API publik) ──────
+  // ── Unauthenticated → redirect ke login ──────────────────────────────────
   if (!isLoggedIn && !isPublic) {
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
@@ -46,11 +56,6 @@ export default auth(async (req: NextRequest & { auth: any }) => {
 });
 
 export const config = {
-  // Matcher: jalankan middleware di semua path KECUALI:
-  // - /api/auth/clear-session (agar NextAuth tidak mengintervensi dan memperbarui cookie)
-  // - _next/static (aset JS/CSS)
-  // - _next/image (image optimizer)
-  // - favicon & file statis
   matcher: [
     "/((?!api/auth/clear-session|_next/static|_next/image|favicon\\.ico|.*\\.png$|.*\\.svg$|.*\\.ico$|.*\\.jpg$|.*\\.webp$|.*\\.woff2?$).*)",
   ],

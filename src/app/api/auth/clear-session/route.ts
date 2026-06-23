@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
+// Penting: jangan jalankan dalam Edge runtime — pastikan Node.js runtime
+// agar cookie deletion bekerja penuh tanpa batasan Edge
+export const runtime = "nodejs";
 
 /**
  * GET /api/auth/clear-session
  *
- * Hard session clear — menghapus semua cookie sesi NextAuth v4 + v5
- * dengan mengirimkan header Set-Cookie maxAge=0 ke semua kombinasi domain.
+ * Hard session clear — menghapus semua cookie sesi NextAuth v4 + v5.
+ * FIX 502 Bad Gateway: Sebelumnya response bisa terjeda karena terlalu banyak
+ * Set-Cookie headers yang dikirim, menyebabkan buffer overflow di Nginx.
+ * Solusi: kurangi domain permutasi, gunakan redirect langsung ke /login.
  */
 export async function GET(req: NextRequest) {
-  const url = new URL(req.url);
-  
-  // Menggunakan relative path untuk menghindari isu proksi Render (localhost:10000)
   const response = new NextResponse(null, {
     status: 302,
     headers: { Location: "/login" },
@@ -31,32 +33,28 @@ export async function GET(req: NextRequest) {
     "__Host-next-auth.csrf-token",
   ];
 
-  // Pastikan menghapus cookie di domain root maupun wildcard
-  // Gunakan header 'x-forwarded-host' atau 'host' agar tidak membaca 'localhost' saat di balik proksi Render
-  const hostHeader = req.headers.get("x-forwarded-host") || req.headers.get("host");
-  const realHostname = hostHeader ? hostHeader.split(":")[0] : url.hostname;
-  
-  const domains = realHostname === "localhost" 
-    ? [undefined, "localhost"] 
-    : [undefined, realHostname, `.${realHostname}`, `www.${realHostname.replace('www.', '')}`];
+  // Hanya hapus di domain root — menghindari terlalu banyak header Set-Cookie
+  // yang dapat menyebabkan buffer overflow di Nginx (502 Bad Gateway)
+  const hostHeader = req.headers.get("x-forwarded-host") || req.headers.get("host") || "";
+  const hostname   = hostHeader.split(":")[0];
+  const isLocal    = hostname === "localhost" || hostname === "127.0.0.1";
 
   for (const name of cookieNames) {
-    for (const domain of domains) {
-      let cookieStr = `${name}=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
-      
-      // Cookie dengan awalan __Host- tidak boleh memiliki atribut Domain
-      if (domain && !name.startsWith("__Host-")) {
-        cookieStr += `; Domain=${domain}`;
-      }
-      
-      if (name.startsWith("__Secure-") || name.startsWith("__Host-")) {
-        cookieStr += `; Secure`;
-      }
+    const isSecureCookie  = name.startsWith("__Secure-") || name.startsWith("__Host-");
+    const isHostPrefixed  = name.startsWith("__Host-");
 
-      response.headers.append("Set-Cookie", cookieStr);
+    // Base delete — path=/ tanpa domain (berlaku di semua subdomain)
+    let base = `${name}=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+    if (isSecureCookie && !isLocal) base += "; Secure";
+    response.headers.append("Set-Cookie", base);
+
+    // Tambahan: hapus dengan domain root (misal: nokosku.id) — hanya non-__Host- prefix
+    if (!isHostPrefixed && !isLocal && hostname) {
+      const withDomain = `${name}=; Path=/; Domain=${hostname}; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax${isSecureCookie ? "; Secure" : ""}`;
+      response.headers.append("Set-Cookie", withDomain);
     }
   }
 
-  console.log("[ClearSession] Sent strict Set-Cookie headers to blast session.");
+  console.log("[ClearSession] Session cookies cleared, redirecting to /login");
   return response;
 }
