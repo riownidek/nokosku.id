@@ -40,9 +40,7 @@ async function h2hGet(baseUrl: string, params: Record<string, string>): Promise<
   const query = new URLSearchParams({ ...params, ...creds });
   const url   = `${baseUrl}?${query.toString()}`;
 
-  // Log URL tanpa credentials untuk debugging
-  const safeLog = `${baseUrl}?${new URLSearchParams(params).toString()}`;
-  console.log(`${TAG} GET ${safeLog}`);
+  console.log(`[H2H] GET ${url.replace(/pin=[^&]+/, "pin=***").replace(/password=[^&]+/, "password=***")}`);
 
   const controller = new AbortController();
   const timeoutId  = setTimeout(() => controller.abort(), 25_000);
@@ -54,7 +52,7 @@ async function h2hGet(baseUrl: string, params: Record<string, string>): Promise<
     });
     if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
     const json = await res.json();
-    console.log(`${TAG} Response: status=${json.status} msg=${json.message}`);
+    console.log(`[H2H] Response HTTP ${res.status}:`, JSON.stringify(json).substring(0, 500));
     return json;
   } catch (err: any) {
     if (err?.name === "AbortError") throw new Error("H2H API timeout (25s)");
@@ -94,7 +92,20 @@ export async function getPpobPricelist(): Promise<H2HProduct[]> {
     throw new Error(`H2H pricelist error: ${json?.message ?? "Tidak ada respons"}`);
   }
 
-  const raw: any[] = Array.isArray(json.data) ? json.data : [];
+  const data = json;
+  let raw: any[] = [];
+  if (Array.isArray(data)) {
+    raw = data;
+  } else if (data && Array.isArray(data.data)) {
+    raw = data.data;
+  } else if (data && Array.isArray(data.message)) {
+    raw = data.message;
+  }
+
+  if (raw.length === 0) {
+    console.error("[H2H] Array produk kosong. Struktur JSON asli:", JSON.stringify(data).substring(0, 1000));
+  }
+
   return raw
     .map((item) => ({
       code:        String(item.code        ?? ""),
@@ -123,7 +134,20 @@ export async function getSmmPricelist(): Promise<H2HProduct[]> {
     throw new Error(`H2H SMM pricelist error: ${json?.message ?? "Tidak ada respons"}`);
   }
 
-  const raw: any[] = Array.isArray(json.data) ? json.data : [];
+  const data = json;
+  let raw: any[] = [];
+  if (Array.isArray(data)) {
+    raw = data;
+  } else if (data && Array.isArray(data.data)) {
+    raw = data.data;
+  } else if (data && Array.isArray(data.message)) {
+    raw = data.message;
+  }
+
+  if (raw.length === 0) {
+    console.error("[H2H] Array produk kosong. Struktur JSON asli:", JSON.stringify(data).substring(0, 1000));
+  }
+
   return raw.map((item) => ({
     // SMM pricelist menggunakan field "id" sebagai kode layanan
     code:        String(item.id           ?? item.code ?? ""),
