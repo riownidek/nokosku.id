@@ -125,6 +125,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return session;
     },
+    // ─── Izinkan callbackUrl ke admin.nokosku.id ──────────────────────────────
+    // Diperlukan agar setelah login di nokosku.id/login, pengguna diarahkan
+    // kembali ke admin.nokosku.id (cross-domain callbackUrl).
+    async redirect({ url, baseUrl }) {
+      // Izinkan URL relatif
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      // Izinkan callback ke nokosku.id dan semua subdomain-nya
+      try {
+        const parsed = new URL(url);
+        if (
+          parsed.hostname === "nokosku.id" ||
+          parsed.hostname.endsWith(".nokosku.id")
+        ) {
+          return url;
+        }
+      } catch {}
+      // Fallback ke baseUrl
+      return baseUrl;
+    },
   },
 
   pages: {
