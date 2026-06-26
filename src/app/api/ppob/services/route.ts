@@ -1,47 +1,73 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { getPpobPricelist } from "@/lib/h2h";
 import { prisma } from "@/lib/prisma";
-import { getJagoanpediaServices } from "@/lib/jagoanpedia";
 
 export const dynamic = "force-dynamic";
 
+const TAG = "[PPOB Services]";
+
+/**
+ * GET /api/ppob/services
+ *
+ * Mengambil daftar layanan PPOB dari H2H.id dan menerapkan markup harga.
+ * Diakses oleh frontend PPOB page.
+ */
 export async function GET() {
   const session = await auth();
-  if (!session?.user?.id)
+  if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   try {
-    // Cek apakah API Key Jagoanpedia sudah dikonfigurasi
-    const apiKey = process.env.JAGOANPEDIA_API_KEY;
-    if (!apiKey || apiKey.trim() === "") {
+    // Verifikasi H2H credentials tersedia
+    if (!process.env.H2H_MEMBER_ID || !process.env.H2H_PIN || !process.env.H2H_PASSWORD) {
       return NextResponse.json(
-        { error: "JAGOANPEDIA_API_KEY belum dikonfigurasi di environment variables. Hubungi admin untuk mengisi API Key Jagoanpedia." },
+        { error: "Kredensial H2H.id belum dikonfigurasi di server. Hubungi admin." },
         { status: 503 }
       );
     }
 
-    // Ambil margin PPOB dari settings — key: "markup_ppob_percent"
-    const marginSetting = await prisma.setting.findUnique({
-      where: { key: "markup_ppob_percent" },
-    });
-    const marginAmount = parseFloat(marginSetting?.value ?? "0");
+    // Ambil markup dari DB (opsional — 0 jika belum diset)
+    let markupAmount = 0;
+    try {
+      const marginSetting = await prisma.appConfig.findFirst({
+        where: { key: "markup_ppob_percent" },
+      });
+      markupAmount = parseFloat(marginSetting?.value ?? "0");
+    } catch {
+      // Ignore DB error — lanjut tanpa markup
+    }
 
-    const services = await getJagoanpediaServices(marginAmount);
+    const products = await getPpobPricelist();
 
-    // Jika array kosong, kembalikan error deskriptif
-    if (!services || services.length === 0) {
+    // Terapkan markup
+    const withMarkup = products
+      .filter((p) => p.status === "active")
+      .map((p) => ({
+        ...p,
+        displayPrice: p.price + markupAmount,
+        // Normalkan field untuk kompatibilitas dengan ServiceCard component
+        service: p.code,
+        name:    p.name,
+        category: p.category,
+        price:   p.price,
+      }));
+
+    if (withMarkup.length === 0) {
       return NextResponse.json(
-        {
-          error: "Tidak ada layanan yang tersedia dari Jagoanpedia. Kemungkinan penyebab: API Key tidak valid, saldo akun provider habis, atau layanan sedang maintenance.",
-          services: [],
-        },
-        { status: 200 } // tetap 200 agar frontend bisa membedakan "kosong" vs "crash"
+        { error: "Tidak ada layanan aktif dari H2H.id. Coba lagi nanti." },
+        { status: 503 }
       );
     }
 
-    return NextResponse.json({ services });
+    console.log(`${TAG} Returning ${withMarkup.length} products with markup=${markupAmount}`);
+    return NextResponse.json({ success: true, data: withMarkup });
   } catch (err: any) {
-    console.error("[PPOB Services]", err);
-    return NextResponse.json({ error: err.message ?? "Gagal mengambil layanan PPOB" }, { status: 500 });
+    console.error(`${TAG} Error:`, err);
+    return NextResponse.json(
+      { error: err.message ?? "Gagal mengambil layanan dari H2H.id" },
+      { status: 502 }
+    );
   }
 }

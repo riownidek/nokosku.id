@@ -1,14 +1,12 @@
 "use client";
 
 /**
- * PPOB Page — Full Client-Side via Direct + corsproxy.io Fallback
+ * PPOB Page — H2H.id Integration
  *
  * Alur:
- * 1. Ambil API Key dari /api/ppob/key (auth-protected)
- * 2. Fetch services langsung dari browser ke Jagoanpedia (IP residensial lolos Cloudflare)
- *    → jika CORS error, fallback ke corsproxy.io
- * 3. Order dibuat langsung dari browser
- * 4. Hasil order dikirim ke /api/ppob/order (server) untuk potong saldo + catat DB
+ * 1. Verifikasi kesiapan H2H via /api/ppob/key
+ * 2. Ambil daftar produk dari /api/ppob/services (server-side via H2H)
+ * 3. Order dikirim ke /api/ppob/order (server-side via H2H — tidak ada browser-to-vendor)
  */
 
 import { useState, useCallback, useEffect } from "react";
@@ -17,7 +15,7 @@ import { toast } from "sonner";
 import {
   Wifi, Loader2, Search, X, ShoppingCart,
   CheckCircle2, Smartphone, Zap, Tv, Droplets,
-  AlertTriangle, RefreshCw,
+  AlertTriangle, RefreshCw, Package,
 } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
 import { staggerContainer, staggerItem } from "@/components/motion";
@@ -26,11 +24,7 @@ import useSWR from "swr";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-// ─── PPOB Proxy Endpoint ─────────────────────────────────────────────────────
-// Menggunakan proxy internal Next.js untuk menghindari CORS di browser
-const INTERNAL_PROXY = "/api/ppob/proxy";
-
-// ─── Category Icon ───────────────────────────────────────────────────────────
+// ─── Category Icon ────────────────────────────────────────────────────────────
 function CategoryIcon({ category }: { category: string }) {
   const cat = (category ?? "").toLowerCase();
   if (cat.includes("pulsa") || cat.includes("paket") || cat.includes("data"))
@@ -41,10 +35,12 @@ function CategoryIcon({ category }: { category: string }) {
     return <Droplets className="h-5 w-5 text-cyan-500" />;
   if (cat.includes("tv") || cat.includes("streaming"))
     return <Tv className="h-5 w-5 text-purple-500" />;
+  if (cat.includes("smm") || cat.includes("sosial") || cat.includes("followers"))
+    return <Package className="h-5 w-5 text-pink-500" />;
   return <Wifi className="h-5 w-5 text-primary" />;
 }
 
-// ─── Service Card ────────────────────────────────────────────────────────────
+// ─── Service Card ─────────────────────────────────────────────────────────────
 function ServiceCard({ service, onOrder }: { service: any; onOrder: (s: any) => void }) {
   return (
     <motion.button
@@ -70,71 +66,45 @@ function ServiceCard({ service, onOrder }: { service: any; onOrder: (s: any) => 
   );
 }
 
-// ─── Order Modal ─────────────────────────────────────────────────────────────
+// ─── Order Modal ──────────────────────────────────────────────────────────────
 function OrderModal({
   service,
-  apiKey,
   onClose,
   onSuccess,
 }: {
   service: any;
-  apiKey: string;
   onClose: () => void;
   onSuccess: (order: any) => void;
 }) {
-  const [target, setTarget] = useState("");
+  const [target, setTarget]   = useState("");
+  const [qty, setQty]         = useState(1);
   const [loading, setLoading] = useState(false);
+
+  const isOpenDenom = !!service.isOpenDenom;
 
   const handleOrder = async () => {
     const t = target.trim();
     if (!t) { toast.error("Masukkan nomor / ID pelanggan tujuan."); return; }
     setLoading(true);
     try {
-      // ── Step 1: Buat order via internal proxy ───────────────────────────────
-      const jagRes = await fetch(INTERNAL_PROXY, {
+      // Semua pemrosesan dilakukan server-side via H2H.id
+      const res = await fetch("/api/ppob/order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          key: apiKey,
-          action: "order",
-          service: service.service ?? service.id,
-          target: t,
-        })
-      });
-
-      const jagData = await jagRes.json();
-
-      if (!jagRes.ok || !jagData.success) {
-        throw new Error(jagData.error ?? jagData.message ?? jagData.suggestion ?? "Gagal menghubungi Jagoanpedia.");
-      }
-
-      // data.id adalah angka (order ID numerik)
-      const providerOrderId = String(jagData.data?.id ?? Date.now());
-      const providerStatus  = String(jagData.data?.status ?? "Pending");
-      const sn              = jagData.data?.sn ?? null;
-
-      // ── Step 2: Kirim hasil ke server kita untuk potong saldo & catat DB ────
-      const serverRes = await fetch("/api/ppob/order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          serviceId:       service.service ?? service.id,
-          serviceName:     service.name,
-          target:          t,
-          providerOrderId,
-          providerStatus,
-          baseCost:        service.price,
-          displayPrice:    service.displayPrice ?? service.price,
-          sn,
+          productCode:  service.code ?? service.service,
+          target:       t,
+          displayPrice: service.displayPrice ?? service.price,
+          qty:          isOpenDenom ? qty : undefined,
         }),
       });
 
-      const serverData = await serverRes.json();
-      if (!serverRes.ok) throw new Error(serverData.error ?? "Gagal mencatat pesanan di server");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Gagal membuat pesanan");
 
       await globalMutate("/api/profile");
       toast.success(`✅ Pesanan berhasil! ${service.name} → ${t}`);
-      onSuccess(serverData.order);
+      onSuccess(data.order);
     } catch (err: any) {
       toast.error(err.message ?? "Gagal membuat pesanan");
     } finally {
@@ -179,21 +149,35 @@ function OrderModal({
         <div className="rounded-xl bg-primary/5 border border-primary/15 px-4 py-3 mb-4">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Total Biaya</p>
           <p className="text-2xl font-black text-primary">
-            {formatRupiah(service.displayPrice ?? service.price)}
+            {formatRupiah((service.displayPrice ?? service.price) * (isOpenDenom ? qty : 1))}
           </p>
         </div>
 
-        <div className="space-y-2 mb-5">
-          <label className="text-sm font-bold text-foreground">Nomor / ID Pelanggan</label>
-          <input
-            type="text"
-            value={target}
-            onChange={(e) => setTarget(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleOrder()}
-            placeholder="Contoh: 08123456789 / 123456789012"
-            autoFocus
-            className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
-          />
+        <div className="space-y-3 mb-5">
+          <div>
+            <label className="text-sm font-bold text-foreground">Nomor / ID Pelanggan</label>
+            <input
+              type="text"
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !isOpenDenom && handleOrder()}
+              placeholder="Contoh: 08123456789 / 123456789012"
+              autoFocus
+              className="mt-1 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+            />
+          </div>
+          {isOpenDenom && (
+            <div>
+              <label className="text-sm font-bold text-foreground">Jumlah (Qty)</label>
+              <input
+                type="number"
+                min={1}
+                value={qty}
+                onChange={(e) => setQty(Math.max(1, parseInt(e.target.value) || 1))}
+                className="mt-1 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+              />
+            </div>
+          )}
           <p className="text-[11px] text-muted-foreground">
             Pastikan nomor / ID benar. Transaksi tidak dapat dibatalkan setelah dikonfirmasi.
           </p>
@@ -222,78 +206,52 @@ function OrderModal({
   );
 }
 
-// ─── MAIN PAGE ───────────────────────────────────────────────────────────────
+// ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 export default function PPOBPage() {
-  const { data: keyData, error: keyError } = useSWR("/api/ppob/key", fetcher, {
+  // Cek kesiapan H2H credentials di server
+  const { data: readyData, error: readyError } = useSWR("/api/ppob/key", fetcher, {
     revalidateOnFocus: false,
   });
 
-  const [services, setServices]                   = useState<any[]>([]);
-  const [loadingServices, setLoadingServices]     = useState(false);
-  const [servicesError, setServicesError]         = useState<string | null>(null);
-  const [search, setSearch]                       = useState("");
-  const [selectedCategory, setSelectedCategory]   = useState("Semua");
-  const [orderTarget, setOrderTarget]             = useState<any>(null);
-  const [lastOrder, setLastOrder]                 = useState<any>(null);
+  const [services, setServices]                 = useState<any[]>([]);
+  const [loadingServices, setLoadingServices]   = useState(false);
+  const [servicesError, setServicesError]       = useState<string | null>(null);
+  const [search, setSearch]                     = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("Semua");
+  const [orderTarget, setOrderTarget]           = useState<any>(null);
+  const [lastOrder, setLastOrder]               = useState<any>(null);
 
-  const apiKey = keyData?.key ?? null;
+  const isReady = readyData?.ready === true;
 
-  // ── Fetch services dari Jagoanpedia ────────────────────────────────────────
+  // ── Fetch services dari H2H via server ────────────────────────────────────
   const fetchServices = useCallback(async () => {
-    if (!apiKey) return;
+    if (!isReady) return;
     setLoadingServices(true);
     setServicesError(null);
     try {
-      // ── Menggunakan internal proxy untuk menghindari CORS ───────────────────
-      const res = await fetch(INTERNAL_PROXY, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: apiKey, action: "services" })
-      });
-
+      const res = await fetch("/api/ppob/services");
       const json = await res.json();
 
-      if (!res.ok || json.success === false) {
-        throw new Error(json.suggestion ?? json.error ?? json.message ?? "API Key tidak valid atau Cloudflare memblokir akses.");
+      if (!res.ok || !json.success) {
+        throw new Error(json.error ?? "Gagal memuat layanan PPOB");
       }
 
-      // Normalisasi data — docs tunjukkan object, realita mungkin array
-      let raw: any[] = [];
-      if (Array.isArray(json.data)) {
-        raw = json.data;
-      } else if (json.data && typeof json.data === "object") {
-        // Jika hanya satu item dikembalikan sebagai object tunggal
-        raw = [json.data];
-      } else {
-        throw new Error("Format respons layanan tidak dikenali");
+      const products: any[] = Array.isArray(json.data) ? json.data : [];
+      if (products.length === 0) {
+        throw new Error("Tidak ada layanan aktif. Coba lagi nanti.");
       }
 
-      if (raw.length === 0) {
-        throw new Error("Tidak ada layanan aktif dari Jagoanpedia. Pastikan API Key valid dan akun aktif.");
-      }
-
-      // Filter status "Active" saja
-      const active = raw.filter((s: any) =>
-        !s.status || String(s.status).toLowerCase() === "active"
-      );
-
-      // Tidak ada margin dari pubConfig karena markup_ppob_percent bukan public key
-      // Margin akan tetap 0 di sisi klien — harga sudah di-set di DB
-      // (Aman: server tetap validate ulang)
-      setServices(active.map((s: any) => ({
-        ...s,
-        displayPrice: Number(s.price) || 0,
-      })));
+      setServices(products);
     } catch (err: any) {
       setServicesError(err.message ?? "Gagal memuat layanan PPOB");
     } finally {
       setLoadingServices(false);
     }
-  }, [apiKey]);
+  }, [isReady]);
 
   useEffect(() => {
-    if (apiKey) fetchServices();
-  }, [apiKey, fetchServices]);
+    if (isReady) fetchServices();
+  }, [isReady, fetchServices]);
 
   const categories = [
     "Semua",
@@ -311,8 +269,8 @@ export default function PPOBPage() {
     setOrderTarget(null);
   }, []);
 
-  // ── Loading API key ────────────────────────────────────────────────────────
-  if (!keyData && !keyError) {
+  // ── Loading ────────────────────────────────────────────────────────────────
+  if (!readyData && !readyError) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -320,20 +278,20 @@ export default function PPOBPage() {
     );
   }
 
-  // ── Key error / belum dikonfigurasi ───────────────────────────────────────
-  if (keyError || keyData?.error) {
+  // ── H2H credentials belum dikonfigurasi ───────────────────────────────────
+  if (readyError || readyData?.error || !isReady) {
     return (
       <div className="max-w-lg rounded-2xl border border-amber-200 bg-amber-50 p-6 space-y-3">
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
           <p className="text-sm font-bold text-amber-800">Layanan PPOB Belum Dikonfigurasi</p>
         </div>
-        <p className="text-xs text-amber-700">{keyData?.error ?? "Tidak dapat memuat konfigurasi PPOB."}</p>
+        <p className="text-xs text-amber-700">{readyData?.error ?? "Kredensial H2H.id tidak ditemukan di server."}</p>
         <div className="rounded-xl bg-amber-100 p-3 text-[11px] text-amber-700 space-y-1">
           <p className="font-semibold">Langkah untuk Admin:</p>
           <ol className="list-decimal list-inside space-y-1">
-            <li>Tambahkan <code className="bg-amber-200 px-1 rounded">JAGOANPEDIA_API_KEY</code> ke environment variables</li>
-            <li>Redeploy aplikasi</li>
+            <li>Tambahkan <code className="bg-amber-200 px-1 rounded">H2H_MEMBER_ID</code>, <code className="bg-amber-200 px-1 rounded">H2H_PIN</code>, <code className="bg-amber-200 px-1 rounded">H2H_PASSWORD</code> ke environment variables</li>
+            <li>Restart aplikasi</li>
           </ol>
         </div>
       </div>
@@ -357,49 +315,6 @@ export default function PPOBPage() {
         </div>
       </motion.div>
 
-      {/* ── PPOB Maintenance Banner — ubah PPOB_MAINTENANCE ke false jika layanan aktif kembali ── */}
-      {(true) && (
-        <motion.div
-          variants={staggerItem}
-          className="rounded-2xl border border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50 p-6 space-y-4"
-        >
-          <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-100">
-              <span className="text-2xl">🔧</span>
-            </div>
-            <div className="flex-1">
-              <h2 className="text-base font-black text-orange-900">Layanan PPOB Sedang Dalam Pemeliharaan</h2>
-              <p className="text-sm text-orange-700 mt-1 leading-relaxed">
-                Kami sedang melakukan penyesuaian keamanan dengan sistem pihak ketiga
-                agar layanan dapat berjalan lebih stabil. Mohon maaf atas ketidaknyamanannya.
-              </p>
-            </div>
-          </div>
-          <div className="rounded-xl bg-white/70 border border-orange-200 px-4 py-3 space-y-2">
-            <p className="text-xs font-bold text-orange-800 uppercase tracking-wide">Layanan yang masih tersedia:</p>
-            <div className="flex flex-wrap gap-2">
-              <a href="/otp" className="flex items-center gap-1.5 text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded-full font-semibold hover:bg-blue-200 transition-colors">
-                📱 Jasa OTP
-              </a>
-              <a href="/deposit" className="flex items-center gap-1.5 text-xs bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-full font-semibold hover:bg-emerald-200 transition-colors">
-                💰 Top Up Saldo
-              </a>
-            </div>
-          </div>
-          <a
-            href="https://t.me/infonokoskuid"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-xl bg-orange-500 hover:bg-orange-600 px-4 py-2.5 text-sm font-bold text-white transition-colors"
-          >
-            💬 Hubungi CS via Telegram
-          </a>
-        </motion.div>
-      )}
-      {/* ── Sembunyikan seluruh konten PPOB saat maintenance ── */}
-      {!(true) && (
-        <>
-
       {/* Success Banner */}
       <AnimatePresence>
         {lastOrder && (
@@ -410,7 +325,7 @@ export default function PPOBPage() {
             <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-emerald-800">Pesanan berhasil diproses!</p>
-              <p className="text-xs text-emerald-700 truncate">{lastOrder.productName}</p>
+              <p className="text-xs text-emerald-700 truncate">{lastOrder.productName ?? lastOrder.product_code}</p>
             </div>
             <button onClick={() => setLastOrder(null)} className="text-emerald-600 hover:text-emerald-800">
               <X className="h-4 w-4" />
@@ -483,7 +398,7 @@ export default function PPOBPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {filtered.map((service) => (
               <ServiceCard
-                key={service.service ?? service.id}
+                key={service.code ?? service.service}
                 service={service}
                 onOrder={setOrderTarget}
               />
@@ -494,17 +409,14 @@ export default function PPOBPage() {
 
       {/* Order Modal */}
       <AnimatePresence>
-        {orderTarget && apiKey && (
+        {orderTarget && (
           <OrderModal
             service={orderTarget}
-            apiKey={apiKey}
             onClose={() => setOrderTarget(null)}
             onSuccess={handleOrderSuccess}
           />
         )}
       </AnimatePresence>
-        </>
-      )}
     </motion.div>
   );
 }

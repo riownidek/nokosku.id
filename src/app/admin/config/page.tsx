@@ -233,7 +233,7 @@ export default function AdminConfigPage() {
         <motion.div variants={staggerItem} className="space-y-4">
           {[
             { key: "markup_percent", label: "Markup Harga Jual OTP (%)", value: markupPercent, onChange: setMarkupPercent, desc: "Persentase markup dari harga asli Hero-SMS untuk layanan OTP.", suffix: "%" },
-            { key: "markup_ppob_percent", label: "Markup Harga Jual PPOB (Rp)", value: markupPpobAmount, onChange: setMarkupPpobAmount, desc: "Tambahan harga (Rp) dari harga asli Jagoanpedia untuk layanan PPOB.", suffix: "Rp" },
+            { key: "markup_ppob_percent", label: "Markup Harga Jual PPOB (Rp)", value: markupPpobAmount, onChange: setMarkupPpobAmount, desc: "Tambahan harga (Rp) dari harga asli H2H.id untuk layanan PPOB.", suffix: "Rp" },
             { key: "referral_commission_percent", label: "Komisi Referral (%)", value: commissionPercent, onChange: setCommissionPercent, desc: "Komisi dari deposit referral.", suffix: "%" },
           ].map((setting) => (
             <Card key={setting.key}>
