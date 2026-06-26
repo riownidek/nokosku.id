@@ -1,152 +1,87 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { getPpobPricelist } from "@/lib/h2h";
 import { prisma } from "@/lib/prisma";
-import { applyMarkupSync } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
+const TAG = "[PPOB Products]";
+
+/**
+ * GET /api/ppob/products?category=&search=
+ *
+ * Mengembalikan daftar produk PPOB dari H2H.id,
+ * dengan dukungan filter kategori dan pencarian.
+ */
 export async function GET(req: Request) {
-  console.log("=== [PPOB] Route handler dipanggil ===");
-
-  // 1. Auth check
-  let session: any;
-  try {
-    session = await auth();
-  } catch (authErr: any) {
-    console.log("=== [PPOB] AUTH ERROR ===", String(authErr));
-    return NextResponse.json({ error: "Auth error", detail: String(authErr) }, { status: 500 });
-  }
-
-  if (!session?.user?.id) {
-    console.log("=== [PPOB] Unauthorized - no session ===");
+  const session = await auth();
+  if (!session?.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  console.log("=== [PPOB] Auth OK, user:", session.user.email, "===");
 
   const { searchParams } = new URL(req.url);
-  const category = searchParams.get("category") ?? undefined;
-  console.log("=== [PPOB] Category param:", category, "===");
+  const categoryFilter = searchParams.get("category") ?? "";
+  const searchFilter   = searchParams.get("search")   ?? "";
 
-  // 2. Markup setting
-  let markupPercent = 0;
   try {
-    const markupSetting = await prisma.setting.findUnique({ where: { key: "markup_percent" } });
-    markupPercent = parseFloat(markupSetting?.value ?? "0");
-    console.log("=== [PPOB] Markup loaded:", markupPercent, "===");
-  } catch (dbErr: any) {
-    console.log("=== [PPOB] DB ERROR saat baca markup ===", String(dbErr));
-    // Non-fatal: lanjutkan dengan markup 0
-  }
-
-  // 3. Ambil API key dari AppConfig secara manual agar bisa log hasilnya
-  let apiKey = "";
-  try {
-    const config = await prisma.appConfig.findFirst({ where: { key: "rumahotp_api_key" } });
-    apiKey = config?.value?.trim() ?? "";
-    console.log("=== [PPOB] API key dari DB:", apiKey ? `"${apiKey.substring(0, 6)}..."` : "KOSONG/TIDAK ADA", "===");
-  } catch (dbErr: any) {
-    console.log("=== [PPOB] DB ERROR saat baca api key ===", String(dbErr));
-    return NextResponse.json({
-      error: "Gagal membaca konfigurasi API Key dari database",
-      detail: String(dbErr),
-    }, { status: 500 });
-  }
-
-  if (!apiKey) {
-    console.log("=== [PPOB] API KEY KOSONG - tidak bisa lanjut ===");
-    return NextResponse.json({
-      error: "API Key RumahOTP belum dikonfigurasi di Panel Admin",
-      detail: "Masuk /admin/config dan isi nilai untuk rumahotp_api_key",
-    }, { status: 500 });
-  }
-
-  // 4. Panggil RumahOTP API secara langsung (bypass lib agar log lebih jelas)
-  try {
-    const rumahOTPUrl = `https://www.rumahotp.io/api/v1/h2h/pricelist`;
-    console.log("=== [PPOB] Memanggil RumahOTP URL:", rumahOTPUrl, "===");
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10_000);
-
-    let raw: Response;
-    try {
-      raw = await fetch(rumahOTPUrl, {
-        headers: {
-          "x-apikey": apiKey,
-          "accept": "application/json",
-          "Content-Type": "application/json",
-        },
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    console.log("=== [PPOB] RumahOTP HTTP status:", raw.status, raw.statusText, "===");
-
-    const responseText = await raw.text();
-    console.log("=== [PPOB] RumahOTP raw response (pertama 500 char):", responseText.substring(0, 500), "===");
-
-    if (!raw.ok) {
-      return NextResponse.json({
-        error: "RumahOTP API Error",
-        detail: `HTTP ${raw.status} ${raw.statusText}: ${responseText}`,
-      }, { status: 500 });
-    }
-
-    let data: any;
-    try {
-      data = JSON.parse(responseText);
-    } catch (jsonErr) {
-      return NextResponse.json({
-        error: "RumahOTP mengembalikan respons bukan JSON",
-        detail: responseText.substring(0, 1000),
-      }, { status: 500 });
-    }
-
-    // Normalisasi array dari berbagai struktur respons
-    let products: any[] = [];
-    if (Array.isArray(data)) {
-      products = data;
-    } else if (Array.isArray(data?.data)) {
-      products = data.data;
-    } else if (Array.isArray(data?.products)) {
-      products = data.products;
-    } else {
-      console.log("=== [PPOB] Data bukan array. Struktur:", JSON.stringify(data).substring(0, 500), "===");
-      return NextResponse.json({
-        error: "Struktur respons RumahOTP tidak dikenali",
-        detail: data,
-      }, { status: 500 });
-    }
-
-    console.log("=== [PPOB] Jumlah produk diterima:", products.length, "===");
-
-    // Lakukan filtering in-memory karena API RumahOTP statis
-    if (category) {
-      products = products.filter((p: any) =>
-        p?.category?.toUpperCase() === category.toUpperCase()
+    if (!process.env.H2H_MEMBER_ID || !process.env.H2H_PIN || !process.env.H2H_PASSWORD) {
+      return NextResponse.json(
+        { error: "Kredensial H2H.id belum dikonfigurasi. Hubungi admin." },
+        { status: 503 }
       );
-      console.log(`=== [PPOB] Jumlah produk setelah filter (${category}):`, products.length, "===");
     }
 
-    const withMarkup = products.map((p: any) => ({
-      ...p,
-      price: Number(p.price ?? p.harga ?? 0),
-      displayPrice: applyMarkupSync(Number(p.price ?? p.harga ?? 0), markupPercent),
-      basePrice: Number(p.price ?? p.harga ?? 0),
+    // Ambil markup dari DB
+    let markupAmount = 0;
+    try {
+      const markupSetting = await prisma.appConfig.findFirst({
+        where: { key: "markup_ppob_percent" },
+      });
+      markupAmount = parseFloat(markupSetting?.value ?? "0");
+    } catch { /* abaikan jika DB error */ }
+
+    // Panggil H2H pricelist
+    const products = await getPpobPricelist();
+
+    // Filter: OPEN saja
+    let filtered = products.filter((p) => p.status === "OPEN");
+
+    // Filter kategori
+    if (categoryFilter) {
+      filtered = filtered.filter((p) =>
+        p.category.toLowerCase().includes(categoryFilter.toLowerCase())
+      );
+    }
+
+    // Filter pencarian
+    if (searchFilter) {
+      const q = searchFilter.toLowerCase();
+      filtered = filtered.filter(
+        (p) => p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)
+      );
+    }
+
+    // Terapkan markup dan normalkan field
+    const result = filtered.map((p) => ({
+      code:         p.code,
+      name:         p.name,
+      category:     p.category,
+      price:        p.price,
+      displayPrice: p.price + markupAmount,
+      isOpenDenom:  p.isOpenDenom,
+      description:  p.description ?? "",
+      // Alias untuk kompatibilitas komponen lama
+      service:      p.code,
+      product_code: p.code,
+      product_name: p.name,
     }));
 
-    return NextResponse.json(withMarkup);
-
-  } catch (fetchErr: any) {
-    const isTimeout = fetchErr?.name === "AbortError";
-    const detail = isTimeout
-      ? "Request ke RumahOTP timeout setelah 10 detik"
-      : String(fetchErr);
-    console.log("=== [PPOB] FETCH ERROR ===", detail, "===");
-    return NextResponse.json({
-      error: "Gagal mengambil daftar produk PPOB",
-      detail,
-    }, { status: 500 });
+    console.log(`${TAG} Returning ${result.length}/${products.length} products`);
+    return NextResponse.json({ success: true, total: result.length, data: result });
+  } catch (err: any) {
+    console.error(`${TAG} Error:`, err);
+    return NextResponse.json(
+      { error: err.message ?? "Gagal mengambil produk dari H2H.id" },
+      { status: 502 }
+    );
   }
 }
