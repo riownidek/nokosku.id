@@ -3,19 +3,20 @@
 /**
  * PPOB Page — H2H.id Integration
  *
- * Alur:
- * 1. Verifikasi kesiapan H2H via /api/ppob/key
- * 2. Ambil daftar produk dari /api/ppob/services (server-side via H2H)
- * 3. Order dikirim ke /api/ppob/order (server-side via H2H — tidak ada browser-to-vendor)
+ * Optimasi performa:
+ * 1. Server-side caching 5 menit di /api/ppob/services (menghindari 10k fetch ulang)
+ * 2. Infinite scroll: hanya render 50 produk pertama, sisanya dimuat saat scroll
+ * 3. Debounced search 400ms: penyaringan array besar tidak jalan di setiap ketukan
+ * 4. Server-side pagination via query params (page, limit, category, search)
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
   Wifi, Loader2, Search, X, ShoppingCart,
   CheckCircle2, Smartphone, Zap, Tv, Droplets,
-  AlertTriangle, RefreshCw, Package,
+  AlertTriangle, RefreshCw, Package, ChevronDown,
 } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
 import { staggerContainer, staggerItem } from "@/components/motion";
@@ -23,6 +24,18 @@ import { mutate as globalMutate } from "swr";
 import useSWR from "swr";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+const PAGE_SIZE = 50; // produk per halaman infinite scroll
+
+// ── Debounce hook ─────────────────────────────────────────────────────────────
+function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState<T>(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(id);
+  }, [value, delay]);
+  return debounced;
+}
 
 // ─── Category Icon ────────────────────────────────────────────────────────────
 function CategoryIcon({ category }: { category: string }) {
@@ -87,7 +100,6 @@ function OrderModal({
     if (!t) { toast.error("Masukkan nomor / ID pelanggan tujuan."); return; }
     setLoading(true);
     try {
-      // Semua pemrosesan dilakukan server-side via H2H.id
       const res = await fetch("/api/ppob/order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -213,23 +225,35 @@ export default function PPOBPage() {
     revalidateOnFocus: false,
   });
 
-  const [services, setServices]                 = useState<any[]>([]);
+  // ── State ──────────────────────────────────────────────────────────────────
+  const [allServices, setAllServices]           = useState<any[]>([]);
+  const [categories, setCategories]             = useState<string[]>(["Semua"]);
   const [loadingServices, setLoadingServices]   = useState(false);
   const [servicesError, setServicesError]       = useState<string | null>(null);
-  const [search, setSearch]                     = useState("");
+  const [searchInput, setSearchInput]           = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Semua");
   const [orderTarget, setOrderTarget]           = useState<any>(null);
   const [lastOrder, setLastOrder]               = useState<any>(null);
 
+  // ── Infinite scroll state ─────────────────────────────────────────────────
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // ── Debounced search — 400ms delay ───────────────────────────────────────
+  const debouncedSearch = useDebounce(searchInput, 400);
+
   const isReady = readyData?.ready === true;
 
-  // ── Fetch services dari H2H via server ────────────────────────────────────
+  // ── Fetch SEMUA produk dari server saat pertama kali (server sudah cache) ─
   const fetchServices = useCallback(async () => {
     if (!isReady) return;
     setLoadingServices(true);
     setServicesError(null);
     try {
-      const res = await fetch("/api/ppob/services");
+      // Ambil halaman 1 dulu — server mengembalikan categories juga
+      // Gunakan limit besar agar semua produk tersedia untuk filter client-side
+      // (server sudah mem-cache, jadi tidak overload H2H)
+      const res  = await fetch("/api/ppob/services?page=1&limit=200");
       const json = await res.json();
 
       if (!res.ok || !json.success) {
@@ -241,35 +265,106 @@ export default function PPOBPage() {
         throw new Error("Tidak ada layanan aktif. Coba lagi nanti.");
       }
 
-      setServices(products);
+      setAllServices(products);
+      setVisibleCount(PAGE_SIZE); // reset scroll
+
+      // Ambil kategori dari respons server
+      if (Array.isArray(json.categories)) {
+        setCategories(["Semua", ...json.categories]);
+      } else {
+        setCategories(["Semua", ...new Set(products.map((p) => p.category as string))].sort() as string[]);
+      }
+
+      // Jika ada lebih banyak halaman, fetch sisanya secara bertahap
+      if (json.pagination && json.pagination.totalPages > 1) {
+        fetchRemainingPages(json.pagination.totalPages);
+      }
     } catch (err: any) {
       setServicesError(err.message ?? "Gagal memuat layanan PPOB");
     } finally {
       setLoadingServices(false);
     }
-  }, [isReady]);
+  }, [isReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch halaman sisanya secara background (non-blocking)
+  const fetchRemainingPages = useCallback(async (totalPages: number) => {
+    for (let page = 2; page <= totalPages; page++) {
+      try {
+        const res  = await fetch(`/api/ppob/services?page=${page}&limit=200`);
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          setAllServices((prev) => {
+            const existingCodes = new Set(prev.map((p) => p.code));
+            const newItems = json.data.filter((p: any) => !existingCodes.has(p.code));
+            return newItems.length > 0 ? [...prev, ...newItems] : prev;
+          });
+        }
+      } catch {
+        break; // stop silently on error
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (isReady) fetchServices();
   }, [isReady, fetchServices]);
 
-  const categories = [
-    "Semua",
-    ...Array.from(new Set(services.map((s) => s.category as string))).sort(),
-  ];
+  // ── Filter produk (dengan debounced search) ───────────────────────────────
+  const filtered = useMemo(() => {
+    let result = allServices;
 
-  const filtered = services.filter((s) => {
-    const matchCat    = selectedCategory === "Semua" || s.category === selectedCategory;
-    const matchSearch = !search.trim() || (s.name ?? "").toLowerCase().includes(search.toLowerCase());
-    return matchCat && matchSearch;
-  });
+    if (selectedCategory !== "Semua") {
+      result = result.filter((s) => s.category === selectedCategory);
+    }
+
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.toLowerCase();
+      result = result.filter(
+        (s) =>
+          (s.name     ?? "").toLowerCase().includes(q) ||
+          (s.code     ?? "").toLowerCase().includes(q) ||
+          (s.category ?? "").toLowerCase().includes(q)
+      );
+    }
+
+    return result;
+  }, [allServices, selectedCategory, debouncedSearch]);
+
+  // Reset visible count jika filter berubah
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [selectedCategory, debouncedSearch]);
+
+  // ── Infinite scroll dengan IntersectionObserver ───────────────────────────
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, filtered.length));
+        }
+      },
+      { rootMargin: "300px" }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [filtered.length]);
+
+  // Produk yang benar-benar di-render ke DOM
+  const visibleServices = useMemo(
+    () => filtered.slice(0, visibleCount),
+    [filtered, visibleCount]
+  );
 
   const handleOrderSuccess = useCallback((order: any) => {
     setLastOrder(order);
     setOrderTarget(null);
   }, []);
 
-  // ── Loading ────────────────────────────────────────────────────────────────
+  // ── Loading awal ──────────────────────────────────────────────────────────
   if (!readyData && !readyError) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
@@ -278,7 +373,7 @@ export default function PPOBPage() {
     );
   }
 
-  // ── H2H credentials belum dikonfigurasi ───────────────────────────────────
+  // ── H2H credentials belum dikonfigurasi ──────────────────────────────────
   if (readyError || readyData?.error || !isReady) {
     return (
       <div className="max-w-lg rounded-2xl border border-amber-200 bg-amber-50 p-6 space-y-3">
@@ -310,6 +405,11 @@ export default function PPOBPage() {
             <h1 className="text-xl font-black text-foreground">Layanan PPOB</h1>
             <p className="text-xs text-muted-foreground">
               Pulsa, PLN, PDAM, streaming, dan ratusan layanan digital lainnya
+              {allServices.length > 0 && (
+                <span className="ml-1 font-semibold text-primary">
+                  ({allServices.length.toLocaleString("id-ID")} produk)
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -336,16 +436,28 @@ export default function PPOBPage() {
 
       {/* Search & Filter */}
       <motion.div variants={staggerItem} className="space-y-3">
+        {/* Input dengan debounce — hanya menyimpan raw input, filter dieksekusi setelah 400ms */}
         <div className="relative">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <input
+            id="ppob-search"
             type="search"
             placeholder="Cari layanan (pulsa, listrik, dll)..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="w-full rounded-xl border border-input bg-card pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
           />
+          {searchInput && (
+            <button
+              onClick={() => setSearchInput("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
+
+        {/* Category chips */}
         {!loadingServices && categories.length > 1 && (
           <div className="flex gap-2 flex-wrap">
             {categories.map((cat) => (
@@ -391,19 +503,45 @@ export default function PPOBPage() {
           <div className="rounded-2xl border border-border bg-card py-16 text-center">
             <Wifi className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
             <p className="text-sm font-semibold text-muted-foreground">
-              {search ? `Tidak ada layanan untuk "${search}"` : "Belum ada layanan tersedia"}
+              {debouncedSearch
+                ? `Tidak ada layanan untuk "${debouncedSearch}"`
+                : "Belum ada layanan tersedia"}
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {filtered.map((service) => (
-              <ServiceCard
-                key={service.code ?? service.service}
-                service={service}
-                onOrder={setOrderTarget}
-              />
-            ))}
-          </div>
+          <>
+            {/* Hanya render visibleServices — sisanya dimuat saat scroll */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {visibleServices.map((service) => (
+                <ServiceCard
+                  key={service.code ?? service.service}
+                  service={service}
+                  onOrder={setOrderTarget}
+                />
+              ))}
+            </div>
+
+            {/* Sentinel element untuk IntersectionObserver infinite scroll */}
+            {visibleCount < filtered.length && (
+              <div ref={loadMoreRef} className="mt-4 flex flex-col items-center gap-2 py-4">
+                <Loader2 className="h-5 w-5 animate-spin text-primary/60" />
+                <p className="text-xs text-muted-foreground">
+                  Menampilkan {visibleCount.toLocaleString("id-ID")} dari{" "}
+                  {filtered.length.toLocaleString("id-ID")} produk...
+                </p>
+              </div>
+            )}
+
+            {/* Info selesai */}
+            {visibleCount >= filtered.length && filtered.length > PAGE_SIZE && (
+              <div className="mt-4 flex items-center justify-center gap-1.5 py-2">
+                <ChevronDown className="h-4 w-4 text-muted-foreground/50" />
+                <p className="text-xs text-muted-foreground/70">
+                  Semua {filtered.length.toLocaleString("id-ID")} produk telah dimuat
+                </p>
+              </div>
+            )}
+          </>
         )}
       </motion.div>
 
