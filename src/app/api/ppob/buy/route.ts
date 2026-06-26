@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     let product: { code: string; name: string; price: number } | undefined;
     try {
       const pricelist = await getPpobPricelist();
-      const found = pricelist.find((p) => p.code === productCode && p.status === "OPEN");
+      const found = pricelist.find((p) => p.code === productCode && p.status === "active");
       if (found) {
         product = { code: found.code, name: found.name, price: found.price };
       }

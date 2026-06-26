@@ -106,21 +106,15 @@ export async function getPpobPricelist(): Promise<H2HProduct[]> {
     console.error("[H2H] Array produk kosong. Struktur JSON asli:", JSON.stringify(data).substring(0, 1000));
   }
 
-  return raw
-    .map((item) => ({
-      code:        String(item.code        ?? ""),
-      name:        String(item.name        ?? ""),
-      category:    String(item.category    ?? item.type ?? "Lainnya"),
-      price:       Number(item.price       ?? 0),
-      type:        "ppob" as const,
-      // Docs: status = "OPEN" jika aktif
-      status:      String(item.status      ?? "OPEN").toUpperCase(),
-      // Produk open denom biasanya kode mengandung "BBSDN" atau kategori "nominal_bebas"
-      isOpenDenom: !!(item.open_denom === true || item.open_denom === "1"
-                   || (item.category ?? "").toLowerCase().includes("nominal_bebas")),
-      description: item.description ?? "",
-    }))
-    .filter((p) => p.code && p.price >= 0);
+  return raw.map((item) => ({
+    code:        item.kode       ?? item.code         ?? item.product_code ?? "",
+    name:        item.keterangan ?? item.produk       ?? item.name         ?? item.product_name ?? "",
+    category:    item.kategori   ?? item.category     ?? item.type_name    ?? "Lainnya",
+    price:       Number(item.harga ?? item.price ?? 0),
+    type:        "ppob" as const,
+    status:      (item.status == "1" || item.status === 1 || item.status?.toLowerCase() === "active" || item.status?.toLowerCase() === "aktif") ? "active" : "inactive",
+    isOpenDenom: !!(item.open_denom || item.open === "1"),
+  })).filter(p => p.code && p.price > 0);
 }
 
 /**
@@ -149,17 +143,16 @@ export async function getSmmPricelist(): Promise<H2HProduct[]> {
   }
 
   return raw.map((item) => ({
-    // SMM pricelist menggunakan field "id" sebagai kode layanan
-    code:        String(item.id           ?? item.code ?? ""),
-    name:        String(item.name         ?? ""),
-    category:    String(item.category     ?? "SMM"),
-    // SMM menggunakan price_per_1k; price per unit = price_per_1k / 1000
-    price:       Number(item.price_per_1k ?? item.price ?? 0),
+    // SMM pricelist: gunakan field "id" sebagai kode layanan, fallback ke kode/code
+    code:        item.id         ?? item.kode        ?? item.code         ?? "",
+    name:        item.keterangan ?? item.produk      ?? item.name         ?? item.product_name ?? "",
+    category:    item.kategori   ?? item.category    ?? "SMM",
+    // SMM menggunakan price_per_1k; harga/price sebagai fallback
+    price:       Number(item.price_per_1k ?? item.harga ?? item.price ?? 0),
     type:        "smm" as const,
-    status:      "OPEN",
-    isOpenDenom: false,
-    description: item.type ?? "",
-  })).filter((p) => p.code && p.price >= 0);
+    status:      (item.status == "1" || item.status === 1 || item.status?.toLowerCase() === "active" || item.status?.toLowerCase() === "aktif") ? "active" : "inactive",
+    isOpenDenom: !!(item.open_denom || item.open === "1"),
+  })).filter(p => p.code && p.price > 0);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

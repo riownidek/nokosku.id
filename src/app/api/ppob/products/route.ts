@@ -42,8 +42,8 @@ export async function GET(req: Request) {
     // Panggil H2H pricelist
     const products = await getPpobPricelist();
 
-    // Filter: OPEN saja
-    let filtered = products.filter((p) => p.status === "OPEN");
+    // Filter: aktif saja (status dinormalisasi menjadi "active"/"inactive")
+    let filtered = products.filter((p) => p.status === "active");
 
     // Filter kategori
     if (categoryFilter) {

@@ -43,8 +43,8 @@ export async function GET() {
 
     // Terapkan markup
     const withMarkup = products
-      // H2H pricelist: status = "OPEN" saat aktif (bukan "active")
-      .filter((p) => p.status === "OPEN" || p.status === "open")
+      // status dinormalisasi menjadi "active"/"inactive" di h2h.ts
+      .filter((p) => p.status === "active")
       .map((p) => ({
         ...p,
         displayPrice: p.price + markupAmount,
